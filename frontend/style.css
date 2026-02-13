@@ -25,7 +25,7 @@ html, body {
 #app {
   display: grid;
   grid-template-rows: 42px 1fr;
-  grid-template-columns: 1fr 260px;
+  grid-template-columns: 240px 1fr 260px;
   height: 100vh;
   gap: 1px;
   background: var(--border);   /* gap colour */
@@ -68,6 +68,7 @@ html, body {
 
 /* ── 3-D canvas pane ─────────────────────────────────────── */
 #canvas-pane {
+  grid-column: 2;
   background: var(--bg);
   position: relative;
   overflow: hidden;
@@ -90,8 +91,19 @@ html, body {
   pointer-events: none;
 }
 
-/* ── Side panel ──────────────────────────────────────────── */
-#panel {
+/* ── Side panels ─────────────────────────────────────────── */
+#scene-tree-panel {
+  grid-column: 1;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  padding: 18px 16px;
+  gap: 20px;
+  overflow-y: auto;
+}
+
+#details-panel {
+  grid-column: 3;
   background: var(--surface);
   display: flex;
   flex-direction: column;
@@ -130,4 +142,51 @@ html, body {
 .divider {
   height: 1px;
   background: var(--border);
+}
+
+/* ── Scene tree ─────────────────────────────────────────── */
+.scene-tree {
+  list-style: none;
+  font-size: 11px;
+  line-height: 1.8;
+}
+
+.scene-tree ul {
+  list-style: none;
+  padding-left: 14px;
+}
+
+.st-collapsed { display: none; }
+
+.st-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  border-radius: 3px;
+  padding: 0 4px;
+}
+
+.st-row:hover {
+  background: rgba(232, 146, 42, 0.08);
+}
+
+.st-toggle {
+  width: 10px;
+  flex-shrink: 0;
+  color: var(--text-dim);
+  font-size: 9px;
+  user-select: none;
+}
+
+.st-icon {
+  flex-shrink: 0;
+  color: var(--amber-dim);
+  font-size: 10px;
+}
+
+.st-label {
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
 }

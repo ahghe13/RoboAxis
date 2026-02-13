@@ -11,12 +11,15 @@
  * separate modules imported here.
  */
 
-import { Scene3D }    from '/static/scene.js';
-import { mountPanel } from '/static/panel.js';
+import { Scene3D }        from '/static/scene.js';
+import { mountDetailsPanel } from '/static/details_panel.js';
+import { mountSceneTree } from '/static/scene_tree.js';
 
-mountPanel();
+mountDetailsPanel();
 
 const container = document.getElementById('canvas-pane');
 const scene3d   = new Scene3D(container);
+
+mountSceneTree(scene3d.scene);
 
 scene3d.start();

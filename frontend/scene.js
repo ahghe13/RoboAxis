@@ -12,6 +12,7 @@
 
 import * as THREE from 'three';
 import { CameraRig } from '/static/camera.js';
+import { Frame }     from '/static/models/frame.js';
 
 export class Scene3D {
   /**
@@ -91,25 +92,7 @@ export class Scene3D {
   // ── Environment (grid + axis markers) ────────────────────────────────────
 
   _initEnvironment() {
-    // Floor grid — amber tinted
-    const grid = new THREE.GridHelper(14, 28, 0x2a2d31, 0x1a1d20);
-    grid.position.y = -0.01;
-    this.scene.add(grid);
-
-    // Thin axis lines
-    const axesMat = (hex) => new THREE.LineBasicMaterial({ color: hex, linewidth: 1 });
-    const axesGeo = (from, to) => {
-      const g = new THREE.BufferGeometry();
-      g.setFromPoints([new THREE.Vector3(...from), new THREE.Vector3(...to)]);
-      return g;
-    };
-
-    // X — red-ish
-    this.scene.add(new THREE.Line(axesGeo([0,0,0],[1.2,0,0]), axesMat(0x7a2020)));
-    // Y — green-ish
-    this.scene.add(new THREE.Line(axesGeo([0,0,0],[0,1.2,0]), axesMat(0x207a20)));
-    // Z — blue-ish
-    this.scene.add(new THREE.Line(axesGeo([0,0,0],[0,0,1.2]), axesMat(0x20407a)));
+    this.scene.add(new Frame());
   }
 
   // ── Resize handling ───────────────────────────────────────────────────────

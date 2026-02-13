@@ -1,16 +1,16 @@
 /**
- * panel.js
- * --------
- * Builds and mounts the #panel sidebar into the #app grid.
+ * details_panel.js
+ * ----------------
+ * Builds and mounts the #details-panel sidebar into the #app grid.
  *
  * Usage:
- *   import { mountPanel } from '/static/panel.js';
- *   mountPanel();
+ *   import { mountDetailsPanel } from '/static/details_panel.js';
+ *   mountDetailsPanel();
  */
 
-export function mountPanel() {
+export function mountDetailsPanel() {
   const panel = document.createElement('aside');
-  panel.id = 'panel';
+  panel.id = 'details-panel';
   panel.innerHTML = `
     <div class="panel-section">
       <div class="panel-label">Position</div>
