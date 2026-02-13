@@ -1,9 +1,8 @@
 /**
  * scene.js
  * --------
- * Encapsulates the Three.js scene, renderer, camera, and orbit controls.
- * Attach it to any container element; it fills the container and handles
- * resize automatically.
+ * Encapsulates the Three.js scene, renderer, lights, and environment.
+ * Camera and orbit controls live in camera.js.
  *
  * Usage:
  *   import { Scene3D } from '/static/scene.js';
@@ -12,7 +11,7 @@
  */
 
 import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { CameraRig } from '/static/camera.js';
 
 export class Scene3D {
   /**
@@ -26,7 +25,6 @@ export class Scene3D {
     this._initCamera();
     this._initLights();
     this._initEnvironment();
-    this._initControls();
     this._initResize();
   }
 
@@ -56,9 +54,9 @@ export class Scene3D {
 
   _initCamera() {
     const { width, height } = this._dimensions();
-    this.camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 200);
-    this.camera.position.set(4, 3, 5);
-    this.camera.lookAt(0, 0, 0);
+    this._cameraRig = new CameraRig(this.renderer.domElement, width / height);
+    this.camera   = this._cameraRig.camera;
+    this.controls = this._cameraRig.controls;
   }
 
   // ── Lights ────────────────────────────────────────────────────────────────
@@ -114,19 +112,6 @@ export class Scene3D {
     this.scene.add(new THREE.Line(axesGeo([0,0,0],[0,0,1.2]), axesMat(0x20407a)));
   }
 
-  // ── Orbit controls ────────────────────────────────────────────────────────
-
-  _initControls() {
-    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-    this.controls.enableDamping    = true;
-    this.controls.dampingFactor    = 0.06;
-    this.controls.screenSpacePanning = false;
-    this.controls.minDistance      = 1.5;
-    this.controls.maxDistance      = 30;
-    this.controls.maxPolarAngle    = Math.PI * 0.52;  // prevent going underground
-    this.controls.target.set(0, 0, 0);
-  }
-
   // ── Resize handling ───────────────────────────────────────────────────────
 
   _dimensions() {
@@ -139,9 +124,8 @@ export class Scene3D {
   _resize() {
     const { width, height } = this._dimensions();
     this.renderer.setSize(width, height);
-    if (this.camera) {
-      this.camera.aspect = width / height;
-      this.camera.updateProjectionMatrix();
+    if (this._cameraRig) {
+      this._cameraRig.resize(width, height);
     }
   }
 
@@ -155,7 +139,7 @@ export class Scene3D {
   start() {
     const tick = () => {
       this._animId = requestAnimationFrame(tick);
-      this.controls.update();
+      this._cameraRig.update();
       this.renderer.render(this.scene, this.camera);
     };
     tick();
