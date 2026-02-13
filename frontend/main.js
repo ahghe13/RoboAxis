@@ -11,7 +11,10 @@
  * separate modules imported here.
  */
 
-import { Scene3D } from '/static/scene.js';
+import { Scene3D }    from '/static/scene.js';
+import { mountPanel } from '/static/panel.js';
+
+mountPanel();
 
 const container = document.getElementById('canvas-pane');
 const scene3d   = new Scene3D(container);
