@@ -12,7 +12,8 @@
 
 import * as THREE from 'three';
 import { CameraRig } from '/static/camera.js';
-import { Frame }     from '/static/models/frame.js';
+import { Frame }      from '/static/models/frame.js';
+import { RotaryAxis } from '/static/models/rotary_axis.js';
 
 export class Scene3D {
   /**
@@ -93,6 +94,9 @@ export class Scene3D {
 
   _initEnvironment() {
     this.scene.add(new Frame());
+
+    this.rotaryAxis = new RotaryAxis();
+    this.scene.add(this.rotaryAxis);
   }
 
   // ── Resize handling ───────────────────────────────────────────────────────
