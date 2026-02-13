@@ -20,6 +20,8 @@ mountDetailsPanel();
 const container = document.getElementById('canvas-pane');
 const scene3d   = new Scene3D(container);
 
+// Populate 3D models from backend, then build the scene tree
+await scene3d.syncFromAPI();
 mountSceneTree(scene3d.scene);
 
 scene3d.start();

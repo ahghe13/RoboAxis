@@ -11,17 +11,23 @@
  */
 
 import * as THREE from 'three';
-import { CameraRig } from '/static/camera.js';
+import { CameraRig }  from '/static/camera.js';
 import { Frame }      from '/static/models/frame.js';
 import { RotaryAxis } from '/static/models/rotary_axis.js';
+
+/** Maps backend component type names to frontend model constructors. */
+const MODEL_MAP = {
+  RotaryAxis,
+};
 
 export class Scene3D {
   /**
    * @param {HTMLElement} container  Element the canvas will be appended to.
    */
   constructor(container) {
-    this._container = container;
-    this._animId    = null;
+    this._container  = container;
+    this._animId     = null;
+    this._components = {};   // name → 3D model instance
 
     this._initRenderer();
     this._initCamera();
@@ -94,9 +100,43 @@ export class Scene3D {
 
   _initEnvironment() {
     this.scene.add(new Frame());
+  }
 
-    this.rotaryAxis = new RotaryAxis();
-    this.scene.add(this.rotaryAxis);
+  // ── API sync ────────────────────────────────────────────────────────────
+
+  /**
+   * Fetch /api/scene and add/update 3D models to match backend state.
+   */
+  async syncFromAPI() {
+    const res  = await fetch('/api/scene');
+    const data = await res.json();
+
+    for (const [name, props] of Object.entries(data)) {
+      let model = this._components[name];
+
+      // Create model if it doesn't exist yet
+      if (!model) {
+        const Ctor = MODEL_MAP[props.type];
+        if (!Ctor) continue;
+        model = new Ctor();
+        model.name = name;
+        this._components[name] = model;
+        this.scene.add(model);
+      }
+
+      // Update state
+      if (typeof model.setAngle === 'function' && props.position != null) {
+        model.setAngle(props.position);
+      }
+    }
+
+    // Remove models no longer in the backend
+    for (const name of Object.keys(this._components)) {
+      if (!(name in data)) {
+        this.scene.remove(this._components[name]);
+        delete this._components[name];
+      }
+    }
   }
 
   // ── Resize handling ───────────────────────────────────────────────────────
