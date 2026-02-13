@@ -18,6 +18,7 @@ import sys
 import time
 
 from rotary_axis import RotaryAxis
+from scene import Scene
 from server import FrontendServer
 
 
@@ -29,10 +30,13 @@ def main() -> None:
     parser.add_argument("--acceleration", default=60.0,        type=float, help="Acceleration in °/s² (default: 60)")
     args = parser.parse_args()
 
-    axis   = RotaryAxis(max_speed=args.max_speed, acceleration=args.acceleration)
-    server = FrontendServer(host=args.host, port=args.port)
+    scene = Scene()
+    scene.add("axis_1", RotaryAxis(max_speed=args.max_speed, acceleration=args.acceleration))
+
+    server = FrontendServer(host=args.host, port=args.port, scene=scene)
 
     server.start()
+    print(f"  Scene — components: {scene.names()}")
     print(f"  Axis  — max speed: {args.max_speed} °/s  |  accel: {args.acceleration} °/s²")
     print("  Press Ctrl-C to stop.\n")
 

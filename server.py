@@ -15,13 +15,19 @@ Endpoints
 ---------
 GET  /              Serves index.html from the frontend directory.
 GET  /static/<path> Serves any file from the frontend directory.
+GET  /api/scene     Returns JSON snapshot of the scene.
 """
 from __future__ import annotations
 
+import json
 import mimetypes
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from scene import Scene
 
 _FRONTEND_DIR = Path(__file__).parent / "frontend"
 
@@ -30,6 +36,7 @@ class _Handler(BaseHTTPRequestHandler):
     """Single-use request handler created per-connection by HTTPServer."""
 
     static_dir: Path
+    scene: Scene | None
 
     def do_GET(self) -> None:
         path = self.path.split("?")[0]  # strip query string
@@ -38,8 +45,21 @@ class _Handler(BaseHTTPRequestHandler):
             self._serve_file(self.static_dir / "index.html")
         elif path.startswith("/static/"):
             self._serve_file(self.static_dir / path[len("/static/"):])
+        elif path == "/api/scene":
+            self._serve_scene()
         else:
             self._send_error(404, f"Not found: {path}")
+
+    def _serve_scene(self) -> None:
+        if self.scene is None:
+            self._send_error(503, "No scene available")
+            return
+        data = json.dumps(self.scene.snapshot()).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
 
     def _serve_file(self, path: Path) -> None:
         if not path.exists() or not path.is_file():
@@ -84,10 +104,12 @@ class FrontendServer:
         host: str = "localhost",
         port: int = 8080,
         static_dir: Path | None = None,
+        scene: Scene | None = None,
     ) -> None:
         self._host = host
         self._port = port
         self._static_dir = static_dir or _FRONTEND_DIR
+        self._scene = scene
         self._httpd: HTTPServer | None = None
         self._thread: threading.Thread | None = None
 
@@ -97,11 +119,13 @@ class FrontendServer:
             return
 
         static_dir = self._static_dir
+        scene = self._scene
 
         class BoundHandler(_Handler):
             pass
 
         BoundHandler.static_dir = static_dir
+        BoundHandler.scene = scene
 
         self._httpd = HTTPServer((self._host, self._port), BoundHandler)
         self._thread = threading.Thread(
