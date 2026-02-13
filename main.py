@@ -1,110 +1,51 @@
 """
 main.py
 -------
-Demo script for the rotary axis simulator.
+Entry point for the rotary axis simulator.
+
+Creates a RotaryAxis and starts the frontend HTTP server, then blocks
+until Ctrl-C or SIGTERM.
 
 Run with:
     python main.py
+    python main.py --host 0.0.0.0 --port 8080
+    python main.py --max-speed 360 --acceleration 120
 """
 
-import threading
+import argparse
+import signal
+import sys
 import time
 
-from servo_motor import ServoMotor
 from rotary_axis import RotaryAxis
+from frontend.server import FrontendServer
 
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-def _print_loop(motor: ServoMotor, stop_event: threading.Event) -> None:
-    """Prints motor state every 100 ms until stop_event is set."""
-    t0 = time.perf_counter()
-    while not stop_event.is_set():
-        elapsed = time.perf_counter() - t0
-        bar_len = int(motor.speed / motor._max_speed * 30)
-        bar = "█" * bar_len + "░" * (30 - bar_len)
-        print(
-            f"  t={elapsed:6.2f}s | {motor.state:<13} | "
-            f"{motor.speed:6.1f}°/s | {motor.position:7.2f}° [{bar}]"
-        )
-        time.sleep(0.1)
-
-
-def section(msg: str) -> None:
-    print(f"\n{'─' * 58}")
-    print(f"  {msg}")
-    print(f"{'─' * 58}\n")
-
-
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
 
 def main() -> None:
-    print("=" * 58)
-    print("  RotaryAxis demo")
-    print("=" * 58)
+    parser = argparse.ArgumentParser(description="Rotary axis simulator")
+    parser.add_argument("--host",         default="localhost", help="Bind address (default: localhost)")
+    parser.add_argument("--port",         default=8080,        type=int,   help="HTTP port (default: 8080)")
+    parser.add_argument("--max-speed",    default=180.0,       type=float, help="Max speed in °/s (default: 180)")
+    parser.add_argument("--acceleration", default=60.0,        type=float, help="Acceleration in °/s² (default: 60)")
+    args = parser.parse_args()
 
-    axis = RotaryAxis(max_speed=180.0, acceleration=60.0)
+    axis   = RotaryAxis(max_speed=args.max_speed, acceleration=args.acceleration)
+    server = FrontendServer(host=args.host, port=args.port)
 
-    # Parallel print loop — reports axis position every 100 ms
-    stop_printing = threading.Event()
-    printer = threading.Thread(
-        target=_print_loop,
-        args=(axis.motor, stop_printing),
-        daemon=True,
-    )
-    printer.start()
+    server.start()
+    print(f"  Axis  — max speed: {args.max_speed} °/s  |  accel: {args.acceleration} °/s²")
+    print("  Press Ctrl-C to stop.\n")
 
-    # ── 1. Jog CW for 2 seconds ──────────────────────────────────
-    section("Jog CW for 2 s")
-    axis.jog_cw()
-    time.sleep(2)
-    axis.jog_stop()
-    while axis.is_moving:
-        time.sleep(0.01)
-    print(f"\n  >> Stopped at {axis.position:.2f}°")
+    def _shutdown(sig, frame) -> None:
+        print("\n[main] Shutting down …")
+        server.stop()
+        sys.exit(0)
 
-    # ── 2. Set speed and acceleration at runtime ──────────────────
-    section("Tuning: speed → 120 °/s, acceleration → 90 °/s²")
-    axis.set_speed(120.0)
-    axis.set_acceleration(90.0)
+    signal.signal(signal.SIGINT,  _shutdown)
+    signal.signal(signal.SIGTERM, _shutdown)
 
-    # ── 3. Absolute move to 270° ──────────────────────────────────
-    section("Absolute move → 200°")
-    axis.set_absolute_position(200.0)
-    axis.wait_for_move()
-    print(f"\n  >> Arrived at {axis.position:.2f}°  (target 270°)")
-
-    # ── 4. Relative move +90° (should land on ~0°/360°) ──────────
-    section("Relative move -90°")
-    axis.set_relative_position(-90.0)
-    axis.wait_for_move()
-    print(f"\n  >> Arrived at {axis.position:.2f}°  (target 0°/360°)")
-
-    # ── 5. Absolute move to 45° ───────────────────────────────────
-    section("Absolute move → 45°")
-    axis.set_absolute_position(45.0)
-    axis.wait_for_move()
-    print(f"\n  >> Arrived at {axis.position:.2f}°  (target 45°)")
-
-    # ── 6. Jog CCW for 1.5 seconds ───────────────────────────────
-    section("Jog CCW for 1.5 s")
-    axis.jog_ccw()
-    time.sleep(1.5)
-    axis.jog_stop()
-    while axis.is_moving:
-        time.sleep(0.01)
-    print(f"\n  >> Stopped at {axis.position:.2f}°")
-
-    # ── Done ──────────────────────────────────────────────────────
-    stop_printing.set()
-    printer.join()
-    print(f"\n{'=' * 58}")
-    print(f"  Demo complete.  Final position: {axis.position:.2f}°")
-    print(f"{'=' * 58}")
+    while True:
+        time.sleep(1)
 
 
 if __name__ == "__main__":
