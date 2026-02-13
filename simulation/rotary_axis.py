@@ -4,7 +4,7 @@ rotary_axis.py
 High-level rotary axis controller built on top of ServoMotor.
 
 Usage:
-    from rotary_axis import RotaryAxis
+    from simulation import RotaryAxis
 
     axis = RotaryAxis(max_speed=180.0, acceleration=60.0)
     axis.set_absolute_position(270.0)
@@ -16,7 +16,7 @@ from __future__ import annotations
 import threading
 import time
 
-from servo_motor import ServoMotor
+from simulation.servo_motor import ServoMotor
 
 
 class RotaryAxis:

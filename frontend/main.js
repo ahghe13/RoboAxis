@@ -12,8 +12,8 @@
  */
 
 import { Scene3D }        from '/static/scene.js';
-import { mountDetailsPanel } from '/static/details_panel.js';
-import { mountSceneTree } from '/static/scene_tree.js';
+import { mountDetailsPanel } from '/static/panels/details_panel.js';
+import { mountSceneTree } from '/static/panels/scene_tree.js';
 
 mountDetailsPanel();
 

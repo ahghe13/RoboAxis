@@ -10,8 +10,7 @@ Run with:
 import threading
 import time
 
-from servo_motor import ServoMotor
-from rotary_axis import RotaryAxis
+from simulation import ServoMotor, RotaryAxis
 
 
 # ---------------------------------------------------------------------------

@@ -8,7 +8,7 @@ frontend can be kept in sync.
 
 Usage:
     from scene import Scene
-    from rotary_axis import RotaryAxis
+    from simulation import RotaryAxis
 
     scene = Scene()
     scene.add("axis_1", RotaryAxis(max_speed=180, acceleration=60))

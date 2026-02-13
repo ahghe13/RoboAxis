@@ -17,7 +17,7 @@ import signal
 import sys
 import time
 
-from rotary_axis import RotaryAxis
+from simulation import RotaryAxis
 from scene import Scene
 from server import FrontendServer
 
