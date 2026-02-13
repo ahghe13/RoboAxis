@@ -18,7 +18,7 @@ import sys
 import time
 
 from rotary_axis import RotaryAxis
-from frontend.server import FrontendServer
+from server import FrontendServer
 
 
 def main() -> None:

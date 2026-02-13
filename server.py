@@ -1,10 +1,10 @@
 """
-frontend/server.py
-------------------
+server.py
+---------
 Simple HTTP server that serves static files from the frontend directory.
 
 Usage:
-    from frontend.server import FrontendServer
+    from server import FrontendServer
 
     server = FrontendServer(host="localhost", port=8080)
     server.start()   # non-blocking — runs in background thread
@@ -13,7 +13,7 @@ Usage:
 
 Endpoints
 ---------
-GET  /              Serves index.html from the same directory as this file.
+GET  /              Serves index.html from the frontend directory.
 GET  /static/<path> Serves any file from the frontend directory.
 """
 from __future__ import annotations
@@ -23,7 +23,7 @@ import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
-_HERE = Path(__file__).parent
+_FRONTEND_DIR = Path(__file__).parent / "frontend"
 
 
 class _Handler(BaseHTTPRequestHandler):
@@ -87,7 +87,7 @@ class FrontendServer:
     ) -> None:
         self._host = host
         self._port = port
-        self._static_dir = static_dir or _HERE
+        self._static_dir = static_dir or _FRONTEND_DIR
         self._httpd: HTTPServer | None = None
         self._thread: threading.Thread | None = None
 
