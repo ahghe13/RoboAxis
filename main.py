@@ -15,8 +15,10 @@ Run with:
 import argparse
 import signal
 import sys
+import threading
 import time
 
+from server.websocket_server import WebSocketServer
 from simulation import RotaryAxis
 from scene import Scene
 from server import FrontendServer
@@ -26,6 +28,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Rotary axis simulator")
     parser.add_argument("--host",         default="localhost", help="Bind address (default: localhost)")
     parser.add_argument("--port",         default=8080,        type=int,   help="HTTP port (default: 8080)")
+    parser.add_argument("--ws-port",      default=8765,        type=int,   help="WebSocket port (default: 8765)")
     parser.add_argument("--max-speed",    default=180.0,       type=float, help="Max speed in °/s (default: 180)")
     parser.add_argument("--acceleration", default=60.0,        type=float, help="Acceleration in °/s² (default: 60)")
     args = parser.parse_args()
@@ -33,11 +36,16 @@ def main() -> None:
     scene = Scene()
     scene.add("axis_1", RotaryAxis(max_speed=args.max_speed, acceleration=args.acceleration))
 
-    server = FrontendServer(host=args.host, port=args.port, scene=scene)
+    server = FrontendServer(host=args.host, port=args.port, scene=scene, ws_port=args.ws_port)
+
+    ws_server = WebSocketServer(scene, host=args.host, port=args.ws_port, update_interval=0.05)
+    ws_thread = threading.Thread(target=ws_server.run, daemon=True)
+    ws_thread.start()
 
     server.start()
     print(f"  Scene — components: {scene.names()}")
     print(f"  Axis  — max speed: {args.max_speed} °/s  |  accel: {args.acceleration} °/s²")
+    print(f"  WebSocket — ws://{args.host}:{args.ws_port}")
     print("  Press Ctrl-C to stop.\n")
 
     def _shutdown(sig, frame) -> None:

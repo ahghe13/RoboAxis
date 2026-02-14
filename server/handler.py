@@ -26,6 +26,7 @@ class Handler(BaseHTTPRequestHandler):
 
     static_dir: Path
     scene: Scene | None
+    ws_port: int
 
     def do_GET(self) -> None:
         path = self.path.split("?")[0]  # strip query string
@@ -36,6 +37,8 @@ class Handler(BaseHTTPRequestHandler):
             self._serve_file(self.static_dir / path[len("/static/"):])
         elif path == "/api/scene":
             self._serve_scene()
+        elif path == "/api/config":
+            self._send_json(200, {"ws_port": self.ws_port})
         else:
             self._send_error(404, f"Not found: {path}")
 

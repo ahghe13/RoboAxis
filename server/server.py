@@ -44,11 +44,13 @@ class FrontendServer:
         port: int = 8080,
         static_dir: Path | None = None,
         scene: Scene | None = None,
+        ws_port: int = 8765,
     ) -> None:
         self._host = host
         self._port = port
         self._static_dir = static_dir or _FRONTEND_DIR
         self._scene = scene
+        self._ws_port = ws_port
         self._httpd: HTTPServer | None = None
         self._thread: threading.Thread | None = None
 
@@ -65,6 +67,7 @@ class FrontendServer:
 
         BoundHandler.static_dir = static_dir
         BoundHandler.scene = scene
+        BoundHandler.ws_port = self._ws_port
 
         self._httpd = HTTPServer((self._host, self._port), BoundHandler)
         self._thread = threading.Thread(

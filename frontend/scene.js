@@ -110,7 +110,14 @@ export class Scene3D {
   async syncFromAPI() {
     const res  = await fetch('/api/scene');
     const data = await res.json();
+    this._applySnapshot(data);
+  }
 
+  /**
+   * Apply a scene snapshot: create/update/remove 3D models to match.
+   * @param {Object} data  Snapshot object from backend (name → props).
+   */
+  _applySnapshot(data) {
     for (const [name, props] of Object.entries(data)) {
       let model = this._components[name];
 
@@ -137,6 +144,14 @@ export class Scene3D {
         delete this._components[name];
       }
     }
+  }
+
+  /**
+   * Called on each WebSocket snapshot to update scene and UI.
+   * @param {Object} snapshot  Scene snapshot from backend.
+   */
+  updateFromSnapshot(snapshot) {
+    this._applySnapshot(snapshot);
   }
 
   // ── Resize handling ───────────────────────────────────────────────────────
