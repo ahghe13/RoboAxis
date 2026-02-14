@@ -9,7 +9,7 @@
  *   - Start the render loop
  */
 
-import { Scene3D }           from '/static/scene.js';
+import { Scene3D }           from '/static/scene/scene.js';
 import { mountDetailsPanel } from '/static/panels/details_panel.js';
 import { mountSceneTree }    from '/static/panels/scene_tree.js';
 import { WebSocketClient }   from '/static/websocket_client.js';
