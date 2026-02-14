@@ -33,7 +33,7 @@ class RotaryAxis:
     direction is forced by a jog command.
 
     Parameters
-    ----------
+    ----------z
     max_speed    : float  Top speed in °/s (default 180).
     acceleration : float  Ramp rate in °/s² (default 60).
     tick_rate    : float  Simulation frequency forwarded to ServoMotor (default 200 Hz).
