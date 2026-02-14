@@ -109,6 +109,18 @@ export class Scene3D {
         this.scene.add(model);
       }
 
+      // Update transform
+      if (props.transform) {
+        const t = props.transform;
+        model.position.set(...t.position);
+        model.rotation.set(
+          THREE.MathUtils.degToRad(t.rotation[0]),
+          THREE.MathUtils.degToRad(t.rotation[1]),
+          THREE.MathUtils.degToRad(t.rotation[2]),
+        );
+        model.scale.set(...t.scale);
+      }
+
       // Update state
       if (typeof model.setAngle === 'function' && props.position != null) {
         model.setAngle(props.position);

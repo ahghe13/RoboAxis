@@ -20,7 +20,7 @@ import time
 
 from server.websocket_server import WebSocketServer
 from simulation import RotaryAxis
-from scene import Scene
+from scene import Scene, Transform
 from server import FrontendServer
 
 
@@ -34,7 +34,8 @@ def main() -> None:
     args = parser.parse_args()
 
     scene = Scene()
-    scene.add("axis_1", RotaryAxis(max_speed=args.max_speed, acceleration=args.acceleration))
+    scene.add("axis_1", RotaryAxis(max_speed=args.max_speed, acceleration=args.acceleration),
+              transform=Transform(position=(0, 0, 0)))
 
     server = FrontendServer(host=args.host, port=args.port, scene=scene, ws_port=args.ws_port)
 
