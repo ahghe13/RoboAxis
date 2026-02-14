@@ -23,6 +23,8 @@ import math
 from dataclasses import dataclass
 from typing import Any
 
+import numpy as np
+
 
 # ── Transform ────────────────────────────────────────────────────────────────
 
@@ -47,78 +49,55 @@ class Transform:
         then adds the parent's position.  Rotations are composed via
         rotation matrices (Euler XYZ order).
         """
-        # Scale the child offset by parent scale
-        sx, sy, sz = self.scale
-        cx, cy, cz = child.position
-        scaled = (cx * sx, cy * sy, cz * sz)
+        parent_mat = _euler_to_matrix(self.rotation)
 
-        # Rotate scaled offset by parent rotation
-        rotated = _rotate_vec(self.rotation, scaled)
-
-        # World position = parent pos + rotated offset
-        px, py, pz = self.position
-        world_pos = (px + rotated[0], py + rotated[1], pz + rotated[2])
+        # Scale the child offset by parent scale, then rotate by parent rotation
+        scaled = np.array(child.position) * np.array(self.scale)
+        world_pos = tuple(np.array(self.position) + parent_mat @ scaled)
 
         # Compose rotations via matrices
-        parent_mat = _euler_to_matrix(self.rotation)
         child_mat = _euler_to_matrix(child.rotation)
-        combined = _mat_mul(parent_mat, child_mat)
-        world_rot = _matrix_to_euler(combined)
+        world_rot = _matrix_to_euler(parent_mat @ child_mat)
 
         # Compose scales
-        csx, csy, csz = child.scale
-        world_scale = (sx * csx, sy * csy, sz * csz)
+        world_scale = tuple(np.array(self.scale) * np.array(child.scale))
 
         return Transform(position=world_pos, rotation=world_rot, scale=world_scale)
 
 
 # ── Rotation helpers (Euler XYZ, degrees) ────────────────────────────────────
 
-def _euler_to_matrix(euler: tuple[float, float, float]) -> list[list[float]]:
+def _euler_to_matrix(euler: tuple[float, float, float]) -> np.ndarray:
     """3x3 rotation matrix from Euler XYZ angles in degrees."""
-    rx, ry, rz = (math.radians(a) for a in euler)
+    rx, ry, rz = np.radians(euler)
     cx, sx = math.cos(rx), math.sin(rx)
     cy, sy = math.cos(ry), math.sin(ry)
     cz, sz = math.cos(rz), math.sin(rz)
-    return [
+    return np.array([
         [cy * cz,  sx * sy * cz - cx * sz,  cx * sy * cz + sx * sz],
         [cy * sz,  sx * sy * sz + cx * cz,  cx * sy * sz - sx * cz],
         [-sy,      sx * cy,                 cx * cy],
-    ]
+    ])
 
 
-def _matrix_to_euler(m: list[list[float]]) -> tuple[float, float, float]:
+def _matrix_to_euler(m: np.ndarray) -> tuple[float, float, float]:
     """Extract Euler XYZ angles (degrees) from a 3x3 rotation matrix."""
-    sy = -m[2][0]
+    sy = -m[2, 0]
     if abs(sy) < 1.0 - 1e-6:
         ry = math.asin(sy)
-        rx = math.atan2(m[2][1], m[2][2])
-        rz = math.atan2(m[1][0], m[0][0])
+        rx = math.atan2(m[2, 1], m[2, 2])
+        rz = math.atan2(m[1, 0], m[0, 0])
     else:
         ry = math.copysign(math.pi / 2, sy)
-        rx = math.atan2(-m[1][2], m[1][1])
+        rx = math.atan2(-m[1, 2], m[1, 1])
         rz = 0.0
     return (math.degrees(rx), math.degrees(ry), math.degrees(rz))
 
 
-def _mat_mul(a: list[list[float]], b: list[list[float]]) -> list[list[float]]:
-    """Multiply two 3x3 matrices."""
-    return [
-        [sum(a[i][k] * b[k][j] for k in range(3)) for j in range(3)]
-        for i in range(3)
-    ]
+from axis_components import AxisBase, AxisRotor
 
-
-def _rotate_vec(euler: tuple[float, float, float],
-                vec: tuple[float, float, float]) -> tuple[float, float, float]:
-    """Rotate a vector by Euler XYZ angles (degrees)."""
-    m = _euler_to_matrix(euler)
-    x, y, z = vec
-    return (
-        m[0][0] * x + m[0][1] * y + m[0][2] * z,
-        m[1][0] * x + m[1][1] * y + m[1][2] * z,
-        m[2][0] * x + m[2][1] * y + m[2][2] * z,
-    )
+# Default base height — must match the frontend AxisBase model.
+_BASE_HEIGHT = 0.3
 
 
 # ── Scene ────────────────────────────────────────────────────────────────────
@@ -131,15 +110,47 @@ class Scene:
         self._transforms: dict[str, Transform] = {}
         self._parents: dict[str, str | None] = {}    # name → parent name
         self._children: dict[str, list[str]] = {}     # name → child names
+        self._aliases: dict[str, str] = {}            # user name → rotor node
 
     def add(self, name: str, component: Any,
             transform: Transform | None = None,
             parent: str | None = None) -> None:
         """Register a component, optionally parented to another.
 
+        If *component* has a ``motor`` attribute (i.e. a RotaryAxis), two
+        scene nodes are created automatically: ``{name}_base`` (stationary)
+        and ``{name}_rotor`` (child, receives the simulation state).
+        Subsequent calls that use ``parent=name`` will attach to the rotor.
+
         *transform* is the local offset relative to the parent (or world
         origin if no parent).
         """
+        # Resolve alias so children attach to the rotor of the parent axis
+        parent = self._aliases.get(parent, parent)
+
+        if hasattr(component, "motor"):
+            self._add_rotary_axis(name, component, transform, parent)
+        else:
+            self._add_node(name, component, transform, parent)
+
+    def _add_rotary_axis(self, name: str, axis: Any,
+                         transform: Transform | None,
+                         parent: str | None) -> None:
+        base_name = f"{name}_base"
+        rotor_name = f"{name}_rotor"
+
+        self._add_node(base_name, AxisBase(), transform, parent)
+        self._add_node(
+            rotor_name, AxisRotor(axis),
+            Transform(position=(0.0, _BASE_HEIGHT, 0.0)),
+            base_name,
+        )
+        # Alias so parent="axis_1" resolves to the rotor
+        self._aliases[name] = rotor_name
+
+    def _add_node(self, name: str, component: Any,
+                  transform: Transform | None,
+                  parent: str | None) -> None:
         if name in self._components:
             raise KeyError(f"Component '{name}' already exists")
         if parent is not None and parent not in self._components:
@@ -157,19 +168,18 @@ class Scene:
         """Remove a component and reparent its children to the scene root."""
         # Reparent children
         for child in self._children.get(name, []):
-            # Bake the removed node's transform into each child
             self._transforms[child] = self._transforms[name].compose(
                 self._transforms[child]
             )
             self._parents[child] = self._parents[name]
-            parent = self._parents[name]
-            if parent is not None:
-                self._children[parent].append(child)
+            par = self._parents[name]
+            if par is not None:
+                self._children[par].append(child)
 
         # Detach from own parent
-        parent = self._parents.get(name)
-        if parent is not None and parent in self._children:
-            self._children[parent].remove(name)
+        par = self._parents.get(name)
+        if par is not None and par in self._children:
+            self._children[par].remove(name)
 
         self._transforms.pop(name, None)
         self._parents.pop(name, None)
@@ -177,8 +187,15 @@ class Scene:
         return self._components.pop(name)
 
     def get(self, name: str) -> Any:
-        """Return the component registered as *name*."""
-        return self._components[name]
+        """Return the component registered as *name*.
+
+        For a RotaryAxis alias, returns the underlying simulation object.
+        """
+        resolved = self._aliases.get(name, name)
+        comp = self._components[resolved]
+        if isinstance(comp, AxisRotor):
+            return comp.axis
+        return comp
 
     def get_transform(self, name: str) -> Transform:
         """Return the local transform for *name*."""

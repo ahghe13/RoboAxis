@@ -14,11 +14,12 @@ import * as THREE from 'three';
 import { CameraRig }    from '/static/scene/camera.js';
 import { createLights } from '/static/scene/lights.js';
 import { Frame }         from '/static/models/frame.js';
-import { RotaryAxis }    from '/static/models/rotary_axis.js';
+import { AxisBase, AxisRotor } from '/static/models/rotary_axis.js';
 
 /** Maps backend component type names to frontend model constructors. */
 const MODEL_MAP = {
-  RotaryAxis,
+  AxisBase,
+  AxisRotor,
 };
 
 export class Scene3D {

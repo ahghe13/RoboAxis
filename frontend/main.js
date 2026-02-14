@@ -39,9 +39,10 @@ scene3d.start();
  * Looks for the first component to populate the panel.
  */
 function updateDetailsPanel(snapshot) {
-  const name = Object.keys(snapshot)[0];
-  if (!name) return;
-  const props = snapshot[name];
+  // Find the first AxisRotor — it carries the simulation state
+  const entry = Object.entries(snapshot).find(([, p]) => p.type === 'AxisRotor');
+  if (!entry) return;
+  const props = entry[1];
 
   const angle = document.getElementById('pos-angle');
   const speed = document.getElementById('pos-speed');
