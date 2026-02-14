@@ -35,7 +35,9 @@ def main() -> None:
 
     scene = Scene()
     scene.add("axis_1", RotaryAxis(max_speed=args.max_speed, acceleration=args.acceleration),
-              transform=Transform(position=(0, 0, 0)))
+              transform=Transform(position=(1, 0, 0)))
+    scene.add("axis_2", RotaryAxis(max_speed=args.max_speed, acceleration=args.acceleration),
+              parent="axis_1", transform=Transform(position=(0, 0, 1)))
 
     server = FrontendServer(host=args.host, port=args.port, scene=scene, ws_port=args.ws_port)
 

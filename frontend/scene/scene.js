@@ -96,20 +96,31 @@ export class Scene3D {
    * @param {Object} data  Snapshot object from backend (name → props).
    */
   _applySnapshot(data) {
+    // 1. Create any new models (before parenting, so parents exist first)
     for (const [name, props] of Object.entries(data)) {
-      let model = this._components[name];
-
-      // Create model if it doesn't exist yet
-      if (!model) {
+      if (!this._components[name]) {
         const Ctor = MODEL_MAP[props.type];
         if (!Ctor) continue;
-        model = new Ctor();
+        const model = new Ctor();
         model.name = name;
         this._components[name] = model;
-        this.scene.add(model);
+      }
+    }
+
+    // 2. Update parenting, transforms, and state
+    for (const [name, props] of Object.entries(data)) {
+      const model = this._components[name];
+      if (!model) continue;
+
+      // Attach to parent (or scene root). Three.js auto-removes from old parent.
+      const targetParent = props.parent
+        ? this._components[props.parent]
+        : this.scene;
+      if (targetParent && model.parent !== targetParent) {
+        targetParent.add(model);
       }
 
-      // Update transform
+      // Update local transform (relative to parent)
       if (props.transform) {
         const t = props.transform;
         model.position.set(...t.position);
@@ -121,16 +132,17 @@ export class Scene3D {
         model.scale.set(...t.scale);
       }
 
-      // Update state
+      // Update component state
       if (typeof model.setAngle === 'function' && props.position != null) {
         model.setAngle(props.position);
       }
     }
 
-    // Remove models no longer in the backend
+    // 3. Remove models no longer in the backend
     for (const name of Object.keys(this._components)) {
       if (!(name in data)) {
-        this.scene.remove(this._components[name]);
+        const model = this._components[name];
+        if (model.parent) model.parent.remove(model);
         delete this._components[name];
       }
     }
