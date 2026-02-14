@@ -20,7 +20,8 @@ import time
 
 from server.websocket_server import WebSocketServer
 from simulation import RotaryAxis
-from scene import Scene, Transform
+from axis_math import Transform
+from scene import Scene
 from server import FrontendServer
 
 
