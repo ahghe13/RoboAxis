@@ -29,7 +29,7 @@ new WebSocketClient(
   (definition) => {
     console.log('[main] Received scene definition');
     scene3d.buildFromDefinition(definition);
-    mountSceneTree(scene3d.scene);
+    mountSceneTree(definition);
   },
   // On state update (subsequent messages)
   (update) => {

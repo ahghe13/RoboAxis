@@ -1,38 +1,55 @@
 /**
  * scene_tree.js
  * -------------
- * Builds a collapsible tree view of the Three.js scene graph
+ * Builds a collapsible tree view from the scene definition
  * and mounts it as its own left-side panel.
  *
  * Usage:
- *   import { mountSceneTree } from '/static/scene_tree.js';
- *   mountSceneTree(scene3d.scene);
+ *   import { mountSceneTree } from '/static/panels/scene_tree.js';
+ *   mountSceneTree(sceneDefinition);
  */
 
 const TYPE_ICONS = {
-  Scene:            '⊞',
-  Group:            '▦',
-  Mesh:             '◆',
-  Line:             '╱',
-  LineSegments:     '╱',
-  Points:           '·',
-  AmbientLight:     '☀',
-  DirectionalLight: '☀',
-  PointLight:       '☀',
-  SpotLight:        '☀',
-  HemisphereLight:  '☀',
-  PerspectiveCamera:'▣',
-  OrthographicCamera:'▣',
-  GridHelper:       '⊞',
-  AxesHelper:       '✛',
+  RobotLink:        '◆',
+  RobotJoint:       '◉',
+  Link:             '◆',
+  Joint:            '◉',
+  AxisBase:         '▦',
+  AxisRotor:        '⟳',
 };
 
 /**
- * Build a single tree node (li) for a Three.js object.
+ * Build a hierarchical tree structure from flat component list.
+ * @param {Array} components - Flat list of components with parent references
+ * @returns {Object} Map of component id to { component, children }
  */
-function buildNode(obj) {
+function buildHierarchy(components) {
+  const hierarchy = new Map();
+
+  // Initialize all components
+  for (const comp of components) {
+    hierarchy.set(comp.id, { component: comp, children: [] });
+  }
+
+  // Build parent-child relationships
+  for (const comp of components) {
+    if (comp.parent && hierarchy.has(comp.parent)) {
+      hierarchy.get(comp.parent).children.push(comp.id);
+    }
+  }
+
+  return hierarchy;
+}
+
+/**
+ * Build a single tree node (li) for a component.
+ * @param {Object} node - Node from hierarchy with { component, children }
+ * @param {Map} hierarchy - Full hierarchy map
+ */
+function buildNode(node, hierarchy) {
+  const { component, children } = node;
   const li = document.createElement('li');
-  const hasChildren = obj.children.length > 0;
+  const hasChildren = children.length > 0;
 
   // Row: toggle + icon + label
   const row = document.createElement('span');
@@ -45,32 +62,28 @@ function buildNode(obj) {
 
   const icon = document.createElement('span');
   icon.className = 'st-icon';
-  icon.textContent = TYPE_ICONS[obj.type] || '○';
+  icon.textContent = TYPE_ICONS[component.type] || '○';
   row.appendChild(icon);
 
   const label = document.createElement('span');
   label.className = 'st-label';
-  const name = obj.name ? ` "${obj.name}"` : '';
-  label.textContent = `${obj.type}${name}`;
+  label.textContent = `${component.id} (${component.type})`;
   row.appendChild(label);
 
   li.appendChild(row);
 
-  // Children (collapsed by default for non-Scene)
+  // Children (collapsed by default)
   if (hasChildren) {
     const ul = document.createElement('ul');
-    ul.className = 'st-children';
-    for (const child of obj.children) {
-      ul.appendChild(buildNode(child));
+    ul.className = 'st-children st-collapsed';
+
+    for (const childId of children) {
+      const childNode = hierarchy.get(childId);
+      if (childNode) {
+        ul.appendChild(buildNode(childNode, hierarchy));
+      }
     }
     li.appendChild(ul);
-
-    // Start expanded for the root Scene, collapsed otherwise
-    if (obj.type !== 'Scene') {
-      ul.classList.add('st-collapsed');
-    } else {
-      toggle.textContent = '▾';
-    }
 
     toggle.addEventListener('click', () => {
       const collapsed = ul.classList.toggle('st-collapsed');
@@ -90,21 +103,39 @@ function buildNode(obj) {
 
 /**
  * Mount the scene tree as a standalone left-side panel.
- * @param {THREE.Scene} threeScene  The Three.js scene to visualise.
+ * @param {Object} sceneDefinition - Scene definition with { type, components }
  */
-export function mountSceneTree(threeScene) {
+export function mountSceneTree(sceneDefinition) {
+  // Remove existing panel if any
+  const existingPanel = document.getElementById('scene-tree-panel');
+  if (existingPanel) {
+    existingPanel.remove();
+  }
+
   const panel = document.createElement('aside');
   panel.id = 'scene-tree-panel';
 
   const section = document.createElement('div');
   section.className = 'panel-section';
-  section.innerHTML = `<div class="panel-label">Scene Graph</div>`;
+  section.innerHTML = `<div class="panel-label">Scene Tree</div>`;
 
   const tree = document.createElement('ul');
   tree.className = 'scene-tree';
-  tree.appendChild(buildNode(threeScene));
-  section.appendChild(tree);
 
+  // Build hierarchy from flat component list
+  const hierarchy = buildHierarchy(sceneDefinition.components);
+
+  // Find root components (those with no parent or parent is null)
+  const roots = sceneDefinition.components.filter(c => !c.parent);
+
+  for (const root of roots) {
+    const node = hierarchy.get(root.id);
+    if (node) {
+      tree.appendChild(buildNode(node, hierarchy));
+    }
+  }
+
+  section.appendChild(tree);
   panel.appendChild(section);
 
   // Insert before canvas-pane so grid order is: header, scene-tree, canvas, panel
