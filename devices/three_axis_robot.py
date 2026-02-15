@@ -88,9 +88,28 @@ class ThreeAxisRobot:
         Return a hierarchical JSON snapshot of the robot.
 
         Delegates to the underlying KinematicsChain, which returns
-        a nested structure that the Scene will inline.
+        a nested structure that the Scene will inline. Adds "Robot"
+        prefix to types so the frontend can use robot-specific models.
         """
-        return self.chain.snapshot()
+        chain_snapshot = self.chain.snapshot()
+
+        # Add "Robot" prefix to all Link/Joint types for frontend model selection
+        def prefix_types(node):
+            if isinstance(node, dict):
+                if node.get("type") == "Link":
+                    node["type"] = "RobotLink"
+                elif node.get("type") == "Joint":
+                    node["type"] = "RobotJoint"
+
+                # Recursively process children
+                if "children" in node:
+                    for child in node["children"].values():
+                        prefix_types(child)
+
+        for root_node in chain_snapshot.values():
+            prefix_types(root_node)
+
+        return chain_snapshot
 
 
 # ── Example Usage ────────────────────────────────────────────────────────────
