@@ -38,13 +38,13 @@ def main() -> None:
     scene = Scene()
 
     # Add individual rotary axes
-    scene.add("axis_1", RotaryAxis(max_speed=args.max_speed, acceleration=args.acceleration),
-              transform=Transform(position=(1, 0, 0)))
-    scene.add("axis_2", RotaryAxis(max_speed=args.max_speed, acceleration=args.acceleration),
-              parent="axis_1", transform=Transform(position=(0, 0, 1)))
+    #scene.add("axis_1", RotaryAxis(max_speed=args.max_speed, acceleration=args.acceleration),
+    #          transform=Transform(position=(1, 0, 0)))
+    #scene.add("axis_2", RotaryAxis(max_speed=args.max_speed, acceleration=args.acceleration),
+    #          parent="axis_1", transform=Transform(position=(0, 0, 1)))
 
     # Add 3-axis robot (treat as a single component for now)
-    robot = ThreeAxisRobot()
+    robot = ThreeAxisRobot(name="robot")
     robot.set_joint_angles(shoulder=45.0, elbow=45.0, wrist=0.0)
     scene.add("robot", robot, transform=Transform(position=(-2, 0, 0)))
 

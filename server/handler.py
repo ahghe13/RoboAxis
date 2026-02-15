@@ -4,9 +4,11 @@ handler.py
 HTTP request handler for the frontend server.
 
 Routes:
-    GET  /              → index.html
-    GET  /static/<path> → static file from the frontend directory
-    GET  /api/scene     → JSON snapshot of the scene
+    GET  /                           → index.html
+    GET  /static/<path>              → static file from the frontend directory
+    GET  /api/scene                  → JSON snapshot of the scene (dynamic state)
+    GET  /api/scene/definition       → static scene definition (structure only)
+    GET  /api/config                 → server configuration (ws_port, etc.)
     POST /api/scene/<name>/position  → set target position for an axis
 """
 from __future__ import annotations
@@ -37,6 +39,8 @@ class Handler(BaseHTTPRequestHandler):
             self._serve_file(self.static_dir / path[len("/static/"):])
         elif path == "/api/scene":
             self._serve_scene()
+        elif path == "/api/scene/definition":
+            self._serve_scene_definition()
         elif path == "/api/config":
             self._send_json(200, {"ws_port": self.ws_port})
         else:
@@ -93,6 +97,12 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
+
+    def _serve_scene_definition(self) -> None:
+        if self.scene is None:
+            self._send_error(503, "No scene available")
+            return
+        self._send_json(200, self.scene.static_scene_definition())
 
     def _serve_file(self, path: Path) -> None:
         if not path.exists() or not path.is_file():

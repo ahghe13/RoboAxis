@@ -24,6 +24,7 @@ from typing import Any
 
 from axis_components import AxisBase, AxisRotor
 from axis_math import Transform
+from component_interface import SceneComponent
 
 # Default base height — must match the frontend AxisBase model.
 _BASE_HEIGHT = 0.3
@@ -41,7 +42,7 @@ class Scene:
         self._children: dict[str, list[str]] = {}     # name → child names
         self._aliases: dict[str, str] = {}            # user name → rotor node
 
-    def add(self, name: str, component: Any,
+    def add(self, name: str, component: SceneComponent,
             transform: Transform | None = None,
             parent: str | None = None) -> None:
         """Register a component, optionally parented to another.
@@ -162,6 +163,61 @@ class Scene:
         """Return all registered component names."""
         return list(self._components.keys())
 
+    def static_scene_definition(self) -> dict[str, Any]:
+        """Return a static scene definition describing the component hierarchy.
+
+        This describes the structure of the scene without dynamic state (transforms,
+        positions, etc.). Useful for initializing the frontend or understanding
+        the scene graph topology.
+
+        Returns:
+            {
+                "type": "static_scene_definition",
+                "components": [
+                    {
+                        "id": "base",
+                        "type": "Link",
+                        "parent": null,
+                        "model_node": "Base"
+                    },
+                    ...
+                ]
+            }
+        """
+        components = []
+
+        def add_component_def(name: str) -> None:
+            """Add component definition and recurse through children."""
+            comp = self._components[name]
+            parent = self._parents.get(name)
+
+            # Get component's static definitions (may be multiple for complex components)
+            component_defs = comp.get_definition()
+
+            # Add scene-level metadata to each definition
+            for component_def in component_defs:
+                # Set id only if not already provided by the component
+                if "id" not in component_def:
+                    component_def["id"] = name
+                # Set parent only if not already defined by the component
+                # (for multi-component definitions, only the root gets the scene parent)
+                if "parent" not in component_def or component_def["parent"] is None:
+                    component_def["parent"] = parent
+                components.append(component_def)
+
+            # Process children
+            for child_name in self._children.get(name, []):
+                add_component_def(child_name)
+
+        # Process all root nodes
+        for name in [n for n, p in self._parents.items() if p is None]:
+            add_component_def(name)
+
+        return {
+            "type": "static_scene_definition",
+            "components": components,
+        }
+
     def snapshot(self) -> dict[str, dict]:
         """Return a flat JSON snapshot of the scene.
 
@@ -176,41 +232,34 @@ class Scene:
             comp = self._components[name]
             local_tf = self._transforms[name]
 
-            # For AxisRotor, include the dynamic rotation in the transform
-            if isinstance(comp, AxisRotor):
-                rotor_rotation = Transform(rotation=(0.0, comp.position, 0.0))
-                local_tf = local_tf.compose(rotor_rotation)
+            # Apply dynamic transform adjustment if component provides one
+            delta = comp.get_local_transform_delta()
+            if delta is not None:
+                local_tf = local_tf.compose(delta)
 
             world_tf = parent_world_tf.compose(local_tf)
 
-            # Let components generate their own snapshot data
-            if hasattr(comp, "snapshot"):
-                props = comp.snapshot()
-                # If the component returns a hierarchical tree (e.g., KinematicsChain),
-                # flatten it into the output dict
-                if isinstance(props, dict) and len(props) == 1:
-                    root_key = next(iter(props))
-                    root_val = props[root_key]
-                    if isinstance(root_val, dict) and "children" in root_val:
-                        # Component is a chain - flatten it
-                        _flatten_chain(root_val, world_tf, parent_name, out)
-                        # Process scene children (if any)
-                        for child_name in self._children.get(name, []):
-                            add_component(child_name, world_tf, name)
-                        return
+            # Get component snapshot
+            props = comp.snapshot()
 
-                # Standard component snapshot
-                props["name"] = name
-                props["matrix"] = world_tf.to_matrix_list()
-                if parent_name is not None:
-                    props["parent"] = parent_name
-            else:
-                # Fallback for components without snapshot()
-                props = {"type": type(comp).__name__}
-                props["name"] = name
-                props["matrix"] = world_tf.to_matrix_list()
-                if parent_name is not None:
-                    props["parent"] = parent_name
+            # If the component returns a hierarchical tree (e.g., KinematicsChain),
+            # flatten it into the output dict
+            if isinstance(props, dict) and len(props) == 1:
+                root_key = next(iter(props))
+                root_val = props[root_key]
+                if isinstance(root_val, dict) and "children" in root_val:
+                    # Component is a chain - flatten it
+                    _flatten_chain(root_val, world_tf, parent_name, out)
+                    # Process scene children (if any)
+                    for child_name in self._children.get(name, []):
+                        add_component(child_name, world_tf, name)
+                    return
+
+            # Standard component snapshot
+            props["name"] = name
+            props["matrix"] = world_tf.to_matrix_list()
+            if parent_name is not None:
+                props["parent"] = parent_name
 
             out[name] = props
 

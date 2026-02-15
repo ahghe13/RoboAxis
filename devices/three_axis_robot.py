@@ -14,7 +14,10 @@ The robot consists of:
 """
 from __future__ import annotations
 
+from typing import Any, Optional
+
 from axis_math import Transform
+from component_interface import SceneComponent
 from kinematics import Joint, KinematicsChain, Link
 
 
@@ -22,39 +25,43 @@ class ThreeAxisRobot:
     """
     A simple 3-DOF serial robot with revolute joints.
 
+    Implements SceneComponent protocol for integration with Scene.
+
     All joints rotate around the Y-axis. The robot is configured with
     typical arm-like proportions.
 
     Usage:
-        robot = ThreeAxisRobot()
+        robot = ThreeAxisRobot(name="robot")
         robot.set_joint_angles(shoulder=45.0, elbow=-30.0, wrist=15.0)
         end_effector_tf = robot.get_end_effector_transform()
+        definition = robot.get_definition()
         snapshot = robot.snapshot()
     """
 
-    def __init__(self) -> None:
+    def __init__(self, name: str) -> None:
+        self.name = name
         self.chain = KinematicsChain()
 
         # Base link (at origin)
-        self.chain.add_link(Link("base", Transform(position=(0.0, 0.0, 0.0))))
+        self.chain.add_link(Link(f"{name}_base", Transform(position=(0.0, 0.0, 0.0))))
 
         # Shoulder joint (rotates about Y)
-        self.chain.add_joint(Joint("shoulder", axis='y'))
+        self.chain.add_joint(Joint(f"{name}_shoulder", axis='y'))
 
         # Upper arm link (1.0 unit along Y)
-        self.chain.add_link(Link("upper_arm", Transform(position=(0.0, 1.0, 0.0))))
+        self.chain.add_link(Link(f"{name}_upper_arm", Transform(position=(0.0, 1.0, 0.0))))
 
         # Elbow joint (rotates about Y)
-        self.chain.add_joint(Joint("elbow", axis='y'))
+        self.chain.add_joint(Joint(f"{name}_elbow", axis='y'))
 
         # Forearm link (0.8 unit along Y)
-        self.chain.add_link(Link("forearm", Transform(position=(0.0, 0.8, 0.0))))
+        self.chain.add_link(Link(f"{name}_forearm", Transform(position=(0.0, 0.8, 0.0))))
 
         # Wrist joint (rotates about Y)
-        self.chain.add_joint(Joint("wrist", axis='y'))
+        self.chain.add_joint(Joint(f"{name}_wrist", axis='y'))
 
         # End-effector link (0.3 unit along Y)
-        self.chain.add_link(Link("end_effector", Transform(position=(0.0, 0.3, 0.0))))
+        self.chain.add_link(Link(f"{name}_end_effector", Transform(position=(0.0, 0.3, 0.0))))
 
     def set_joint_angles(self, shoulder: float = 0.0, elbow: float = 0.0,
                          wrist: float = 0.0) -> None:
@@ -67,23 +74,76 @@ class ThreeAxisRobot:
         elbow    : float  Elbow joint angle (default: 0.0).
         wrist    : float  Wrist joint angle (default: 0.0).
         """
-        self.chain.set_joint_position("shoulder", shoulder)
-        self.chain.set_joint_position("elbow", elbow)
-        self.chain.set_joint_position("wrist", wrist)
+        self.chain.set_joint_position(f"{self.name}_shoulder", shoulder)
+        self.chain.set_joint_position(f"{self.name}_elbow", elbow)
+        self.chain.set_joint_position(f"{self.name}_wrist", wrist)
 
     def get_joint_angles(self) -> dict[str, float]:
         """Return the current joint angles."""
         return {
-            "shoulder": self.chain.get_joint("shoulder").position,
-            "elbow": self.chain.get_joint("elbow").position,
-            "wrist": self.chain.get_joint("wrist").position,
+            "shoulder": self.chain.get_joint(f"{self.name}_shoulder").position,
+            "elbow": self.chain.get_joint(f"{self.name}_elbow").position,
+            "wrist": self.chain.get_joint(f"{self.name}_wrist").position,
         }
 
     def get_end_effector_transform(self) -> Transform:
         """Return the world transform of the end-effector."""
-        return self.chain.get_world_transform("end_effector")
+        return self.chain.get_world_transform(f"{self.name}_end_effector")
 
-    def snapshot(self) -> dict:
+    def get_definition(self) -> list[dict[str, Any]]:
+        """
+        Return static robot definition.
+
+        Returns a list of component definitions, one for each link.
+        Joints are handled dynamically through transforms and snapshots.
+
+        Returns:
+            List of component definitions for all links
+        """
+        return [
+            # Base link (parent will be set by Scene to robot's parent)
+            {
+                "id": f"{self.name}_base",
+                "type": "RobotLink",
+                "model_file": "robot.glb",
+                "model_body": "Body",
+                "length": 0.0,
+                "parent": None,  # Will be set by Scene
+            },
+            # Upper arm link (child of base)
+            {
+                "id": f"{self.name}_upper_arm",
+                "type": "RobotLink",
+                "model_file": "robot.glb",
+                "model_body": "Body001",
+                "length": 1.0,
+                "parent": f"{self.name}_base",
+            },
+            # Forearm link (child of upper arm)
+            {
+                "id": f"{self.name}_forearm",
+                "type": "RobotLink",
+                "model_file": "robot.glb",
+                "model_body": "Body002",
+                "length": 0.8,
+                "parent": f"{self.name}_upper_arm",
+            },
+            # End effector link (child of forearm)
+            {
+                "id": f"{self.name}_end_effector",
+                "type": "RobotLink",
+                "model_file": "robot.glb",
+                "model_body": "Body003",
+                "length": 0.3,
+                "parent": f"{self.name}_forearm",
+            },
+        ]
+
+    def get_local_transform_delta(self) -> Optional[Transform]:
+        """Return dynamic transform adjustment (none for robot container)."""
+        return None
+
+    def snapshot(self) -> dict[str, Any]:
         """
         Return a hierarchical JSON snapshot of the robot.
 
@@ -117,11 +177,17 @@ class ThreeAxisRobot:
 if __name__ == "__main__":
     import json
 
-    robot = ThreeAxisRobot()
+    robot = ThreeAxisRobot(name="robot")
 
     print("=== Three-Axis Robot ===")
     print(f"Initial joint angles: {robot.get_joint_angles()}")
     print(f"End-effector transform: {robot.get_end_effector_transform()}")
+    print()
+
+    # Get static definition
+    definition = robot.get_definition()
+    print("=== Robot Definition (Static) ===")
+    print(json.dumps(definition, indent=2))
     print()
 
     # Set some joint angles
