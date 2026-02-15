@@ -15,11 +15,15 @@ import { CameraRig }    from '/static/scene/camera.js';
 import { createLights } from '/static/scene/lights.js';
 import { Frame }         from '/static/models/frame.js';
 import { AxisBase, AxisRotor } from '/static/models/rotary_axis.js';
+import { Link }                 from '/static/models/link.js';
+import { Joint }                from '/static/models/joint.js';
 
 /** Maps backend component type names to frontend model constructors. */
 const MODEL_MAP = {
   AxisBase,
   AxisRotor,
+  Link,
+  Joint,
 };
 
 export class Scene3D {

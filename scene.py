@@ -174,14 +174,28 @@ class Scene:
             # Let components generate their own snapshot data
             if hasattr(comp, "snapshot"):
                 props = comp.snapshot()
+                # If the component returns a hierarchical tree (e.g., KinematicsChain),
+                # inline it and skip adding scene children
+                if isinstance(props, dict) and len(props) == 1:
+                    # Single root in snapshot - might be a chain
+                    root_key = next(iter(props))
+                    root_val = props[root_key]
+                    if isinstance(root_val, dict) and "children" in root_val:
+                        # Component provided its own hierarchy - use it directly
+                        # but apply the scene transform to the root
+                        root_val["transform"] = self._transforms[name].to_dict()
+                        return root_val
+
+                # Standard component snapshot
+                props["name"] = name
+                props["transform"] = self._transforms[name].to_dict()
             else:
+                # Fallback for components without snapshot()
                 props = {"type": type(comp).__name__}
+                props["name"] = name
+                props["transform"] = self._transforms[name].to_dict()
 
-            # Add name and transform
-            props["name"] = name
-            props["transform"] = self._transforms[name].to_dict()
-
-            # Recursively build children
+            # Recursively build scene children (not component's internal children)
             children_names = self._children.get(name, [])
             if children_names:
                 props["children"] = {

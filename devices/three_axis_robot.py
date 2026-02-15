@@ -84,7 +84,12 @@ class ThreeAxisRobot:
         return self.chain.get_world_transform("end_effector")
 
     def snapshot(self) -> dict:
-        """Return a hierarchical JSON snapshot of the robot."""
+        """
+        Return a hierarchical JSON snapshot of the robot.
+
+        Delegates to the underlying KinematicsChain, which returns
+        a nested structure that the Scene will inline.
+        """
         return self.chain.snapshot()
 
 
