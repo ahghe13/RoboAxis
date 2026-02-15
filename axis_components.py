@@ -11,7 +11,10 @@ from typing import Any
 
 class AxisBase:
     """Stationary base of a rotary axis (scene node marker)."""
-    pass
+
+    def snapshot(self) -> dict[str, Any]:
+        """Return JSON-serializable state for this component."""
+        return {"type": "AxisBase"}
 
 
 class AxisRotor:
@@ -35,3 +38,15 @@ class AxisRotor:
     @property
     def motor(self) -> Any:
         return self.axis.motor
+
+    def snapshot(self) -> dict[str, Any]:
+        """Return JSON-serializable state for this component."""
+        return {
+            "type": "AxisRotor",
+            "position": self.axis.position,
+            "speed": self.axis.speed,
+            "is_moving": self.axis.is_moving,
+            "max_speed": self.axis.motor._max_speed,
+            "acceleration": self.axis.motor._acceleration,
+            "state": self.axis.motor.state,
+        }

@@ -94,34 +94,33 @@ export class Scene3D {
 
   /**
    * Apply a scene snapshot: create/update/remove 3D models to match.
-   * @param {Object} data  Snapshot object from backend (name → props).
+   * @param {Object} data  Hierarchical snapshot from backend (nested children).
    */
   _applySnapshot(data) {
-    // 1. Create any new models (before parenting, so parents exist first)
-    for (const [name, props] of Object.entries(data)) {
-      if (!this._components[name]) {
+    const seenNames = new Set();
+
+    // Recursive function to process a node and its children
+    const processNode = (props, parentModel) => {
+      const name = props.name;
+      seenNames.add(name);
+
+      // 1. Get or create the model
+      let model = this._components[name];
+      if (!model) {
         const Ctor = MODEL_MAP[props.type];
-        if (!Ctor) continue;
-        const model = new Ctor();
+        if (!Ctor) return;
+        model = new Ctor();
         model.name = name;
         this._components[name] = model;
       }
-    }
 
-    // 2. Update parenting, transforms, and state
-    for (const [name, props] of Object.entries(data)) {
-      const model = this._components[name];
-      if (!model) continue;
-
-      // Attach to parent (or scene root). Three.js auto-removes from old parent.
-      const targetParent = props.parent
-        ? this._components[props.parent]
-        : this.scene;
-      if (targetParent && model.parent !== targetParent) {
+      // 2. Attach to parent (or scene root)
+      const targetParent = parentModel || this.scene;
+      if (model.parent !== targetParent) {
         targetParent.add(model);
       }
 
-      // Update local transform (relative to parent)
+      // 3. Update local transform (relative to parent)
       if (props.transform) {
         const t = props.transform;
         model.position.set(...t.position);
@@ -133,15 +132,27 @@ export class Scene3D {
         model.scale.set(...t.scale);
       }
 
-      // Update component state
+      // 4. Update component state
       if (typeof model.setAngle === 'function' && props.position != null) {
         model.setAngle(props.position);
       }
+
+      // 5. Recursively process children
+      if (props.children) {
+        for (const childProps of Object.values(props.children)) {
+          processNode(childProps, model);
+        }
+      }
+    };
+
+    // Process all root nodes
+    for (const rootProps of Object.values(data)) {
+      processNode(rootProps, null);
     }
 
-    // 3. Remove models no longer in the backend
+    // Remove models no longer in the backend
     for (const name of Object.keys(this._components)) {
-      if (!(name in data)) {
+      if (!seenNames.has(name)) {
         const model = this._components[name];
         if (model.parent) model.parent.remove(model);
         delete this._components[name];

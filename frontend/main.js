@@ -36,13 +36,27 @@ scene3d.start();
 
 /**
  * Update the details panel readouts from a scene snapshot.
- * Looks for the first component to populate the panel.
+ * Recursively searches the hierarchical snapshot for the first AxisRotor.
  */
 function updateDetailsPanel(snapshot) {
-  // Find the first AxisRotor — it carries the simulation state
-  const entry = Object.entries(snapshot).find(([, p]) => p.type === 'AxisRotor');
-  if (!entry) return;
-  const props = entry[1];
+  // Recursively find the first AxisRotor in the hierarchy
+  function findRotor(node) {
+    if (node.type === 'AxisRotor') return node;
+    if (node.children) {
+      for (const child of Object.values(node.children)) {
+        const found = findRotor(child);
+        if (found) return found;
+      }
+    }
+    return null;
+  }
+
+  let props = null;
+  for (const root of Object.values(snapshot)) {
+    props = findRotor(root);
+    if (props) break;
+  }
+  if (!props) return;
 
   const angle = document.getElementById('pos-angle');
   const speed = document.getElementById('pos-speed');

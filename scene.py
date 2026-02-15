@@ -163,29 +163,34 @@ class Scene:
         return list(self._components.keys())
 
     def snapshot(self) -> dict[str, dict]:
-        """Return a JSON-serialisable snapshot of every component's state."""
-        out: dict[str, dict] = {}
-        for name, comp in self._components.items():
-            props = _component_props(comp)
+        """Return a hierarchical JSON snapshot of the scene.
+
+        Components are nested under their parents rather than being flat
+        with parent/children references.
+        """
+        def build_node(name: str) -> dict:
+            comp = self._components[name]
+
+            # Let components generate their own snapshot data
+            if hasattr(comp, "snapshot"):
+                props = comp.snapshot()
+            else:
+                props = {"type": type(comp).__name__}
+
+            # Add name and transform
+            props["name"] = name
             props["transform"] = self._transforms[name].to_dict()
-            props["parent"] = self._parents[name]
-            props["children"] = list(self._children.get(name, []))
-            out[name] = props
-        return out
 
+            # Recursively build children
+            children_names = self._children.get(name, [])
+            if children_names:
+                props["children"] = {
+                    child_name: build_node(child_name)
+                    for child_name in children_names
+                }
 
-def _component_props(comp: Any) -> dict:
-    """Extract a property dict from a component using duck-typed attributes."""
-    props: dict[str, Any] = {"type": type(comp).__name__}
-    if hasattr(comp, "position"):
-        props["position"] = comp.position
-    if hasattr(comp, "speed"):
-        props["speed"] = comp.speed
-    if hasattr(comp, "is_moving"):
-        props["is_moving"] = comp.is_moving
-    if hasattr(comp, "motor"):
-        motor = comp.motor
-        props["max_speed"] = motor._max_speed
-        props["acceleration"] = motor._acceleration
-        props["state"] = motor.state
-    return props
+            return props
+
+        # Build tree starting from root nodes (those with no parent)
+        root_names = [name for name, parent in self._parents.items() if parent is None]
+        return {name: build_node(name) for name in root_names}
