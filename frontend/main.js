@@ -19,44 +19,23 @@ mountDetailsPanel();
 const container = document.getElementById('canvas-pane');
 const scene3d   = new Scene3D(container);
 
-// Populate 3D models from backend, then build the scene tree
-await scene3d.syncFromAPI();
-mountSceneTree(scene3d.scene);
-
-// Connect to the WebSocket server for live updates
+// Connect to the WebSocket server
 const config = await fetch('/api/config').then(r => r.json());
 const wsUrl  = `ws://${location.hostname}:${config.ws_port}`;
 
-new WebSocketClient(wsUrl, (snapshot) => {
-  scene3d.updateFromSnapshot(snapshot);
-  updateDetailsPanel(snapshot);
-});
+new WebSocketClient(
+  wsUrl,
+  // On scene definition (first message)
+  (definition) => {
+    console.log('[main] Received scene definition');
+    scene3d.buildFromDefinition(definition);
+    mountSceneTree(scene3d.scene);
+  },
+  // On state update (subsequent messages)
+  (update) => {
+    scene3d.updateFromState(update);
+    // TODO: updateDetailsPanel if needed
+  }
+);
 
 scene3d.start();
-
-/**
- * Update the details panel readouts from a scene snapshot.
- * Finds the first AxisRotor in the flat snapshot.
- */
-function updateDetailsPanel(snapshot) {
-  // Find the first AxisRotor (flat lookup)
-  const props = Object.values(snapshot).find(comp => comp.type === 'AxisRotor');
-  if (!props) return;
-
-  const angle = document.getElementById('pos-angle');
-  const speed = document.getElementById('pos-speed');
-  const state = document.getElementById('pos-state');
-  const maxSpd = document.getElementById('param-speed');
-  const accel  = document.getElementById('param-accel');
-
-  if (angle && props.position != null)
-    angle.textContent = `${props.position.toFixed(2)}°`;
-  if (speed && props.speed != null)
-    speed.textContent = `${props.speed.toFixed(1)} °/s`;
-  if (state && props.state != null)
-    state.textContent = props.state;
-  if (maxSpd && props.max_speed != null)
-    maxSpd.textContent = `${props.max_speed} °/s`;
-  if (accel && props.acceleration != null)
-    accel.textContent = `${props.acceleration} °/s²`;
-}

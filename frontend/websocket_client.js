@@ -7,12 +7,14 @@
 
 export class WebSocketClient {
   /**
-   * @param {string} url       WebSocket URL, e.g. "ws://localhost:8765"
-   * @param {function} onSnapshot  Callback invoked with each snapshot object
+   * @param {string} url            WebSocket URL, e.g. "ws://localhost:8765"
+   * @param {function} onDefinition Callback invoked with scene definition
+   * @param {function} onUpdate     Callback invoked with state updates
    */
-  constructor(url, onSnapshot) {
+  constructor(url, onDefinition, onUpdate) {
     this._url = url;
-    this._onSnapshot = onSnapshot;
+    this._onDefinition = onDefinition;
+    this._onUpdate = onUpdate;
     this._ws = null;
     this._connect();
   }
@@ -26,8 +28,15 @@ export class WebSocketClient {
 
     this._ws.onmessage = (event) => {
       try {
-        const snapshot = JSON.parse(event.data);
-        this._onSnapshot(snapshot);
+        const message = JSON.parse(event.data);
+
+        if (message.type === 'static_scene_definition') {
+          this._onDefinition(message);
+        } else if (message.type === 'state_update') {
+          this._onUpdate(message);
+        } else {
+          console.warn('[ws] Unknown message type:', message.type);
+        }
       } catch (e) {
         console.warn('[ws] Failed to parse message:', e);
       }

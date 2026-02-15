@@ -11,6 +11,7 @@
  */
 
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { CameraRig }    from '/static/scene/camera.js';
 import { createLights } from '/static/scene/lights.js';
 import { Frame }         from '/static/models/frame.js';
@@ -28,6 +29,63 @@ const MODEL_MAP = {
   RobotLink,
   RobotJoint,
 };
+
+/** Cache for loaded GLB models */
+const modelCache = new Map();
+const gltfLoader = new GLTFLoader();
+
+/**
+ * Load a GLB file and extract a specific body/mesh by name.
+ * @param {string} modelFile - Path to the GLB file (e.g., "robot.glb")
+ * @param {string} bodyName - Name of the specific mesh/object to extract (e.g., "Body", "Body001")
+ * @returns {Promise<THREE.Object3D>} The extracted mesh/object
+ */
+async function loadModelBody(modelFile, bodyName) {
+  const filePath = `/static/assets/${modelFile}`;
+
+  // Load the GLB file (cached)
+  if (!modelCache.has(filePath)) {
+    const promise = new Promise((resolve, reject) => {
+      gltfLoader.load(
+        filePath,
+        (gltf) => resolve(gltf.scene),
+        undefined,
+        (error) => {
+          console.error(`Error loading ${filePath}:`, error);
+          reject(error);
+        }
+      );
+    });
+    modelCache.set(filePath, promise);
+  }
+
+  const model = await modelCache.get(filePath);
+
+  // Find the specific body by name
+  let body = null;
+  model.traverse((child) => {
+    if (child.name === bodyName) {
+      body = child;
+    }
+  });
+
+  if (!body) {
+    console.warn(`Body "${bodyName}" not found in ${modelFile}`);
+    // Return a placeholder
+    const geometry = new THREE.BoxGeometry(0.1, 0.2, 0.1);
+    const material = new THREE.MeshStandardMaterial({ color: 0xff00ff });
+    return new THREE.Mesh(geometry, material);
+  }
+
+  // Clone the body so it can be added to multiple scenes
+  const clonedBody = body.clone();
+  if (clonedBody.isMesh) {
+    clonedBody.castShadow = true;
+    clonedBody.receiveShadow = true;
+  }
+
+  return clonedBody;
+}
 
 export class Scene3D {
   /**
@@ -88,50 +146,76 @@ export class Scene3D {
     this.scene.add(new Frame());
   }
 
-  // ── API sync ────────────────────────────────────────────────────────────
+  // ── Scene setup from definition ──────────────────────────────────────────
 
   /**
-   * Fetch /api/scene and add/update 3D models to match backend state.
+   * Build the scene from a static scene definition.
+   * @param {Object} definition  Scene definition with { type: "static_scene_definition", components: [...] }
    */
-  async syncFromAPI() {
-    const res  = await fetch('/api/scene');
-    const data = await res.json();
-    this._applySnapshot(data);
+  buildFromDefinition(definition) {
+    console.log('[scene] Building scene from definition:', definition);
+
+    // Clear existing components
+    for (const name of Object.keys(this._components)) {
+      const model = this._components[name];
+      if (model.parent) model.parent.remove(model);
+      delete this._components[name];
+    }
+
+    // Create components from definition
+    for (const componentDef of definition.components) {
+      const { id, type, model_file, model_body } = componentDef;
+
+      // Create a group container for this component
+      const group = new THREE.Group();
+      group.name = id;
+
+      // Add coordinate frame (axes helper)
+      const axesHelper = new THREE.AxesHelper(0.2);
+      group.add(axesHelper);
+
+      // If model file is specified, load the 3D model asynchronously
+      if (model_file && model_body) {
+        loadModelBody(model_file, model_body)
+          .then((mesh) => {
+            group.add(mesh);
+            console.log(`[scene] Loaded model for ${id}: ${model_file}/${model_body}`);
+          })
+          .catch((err) => {
+            console.error(`[scene] Failed to load model for ${id}:`, err);
+          });
+      }
+
+      // Store and add to scene
+      this._components[id] = group;
+      this.scene.add(group);
+
+      console.log(`[scene] Created component: ${id} (${type})`);
+    }
   }
 
   /**
-   * Apply a scene snapshot: create/update/remove 3D models to match.
-   * @param {Object} data  Flat snapshot from backend (name → props).
-   *                       Transforms are absolute world matrices (4x4).
+   * Update scene from a state update.
+   * @param {Object} update  State update with { type: "state_update", components: [{id, matrix}, ...] }
    */
-  _applySnapshot(data) {
-    const seenNames = new Set();
-
-    // Process each component (flat iteration)
-    for (const [name, props] of Object.entries(data)) {
-      seenNames.add(name);
-
-      // 1. Get or create the model
-      let model = this._components[name];
+  updateFromState(update) {
+    // Process each component update
+    for (const { id, matrix } of update.components) {
+      const model = this._components[id];
       if (!model) {
-        const Ctor = MODEL_MAP[props.type];
-        if (!Ctor) continue;
-        model = new Ctor();
-        model.name = name;
-        this._components[name] = model;
-        this.scene.add(model);  // Add directly to scene (world space)
+        console.warn(`[scene] Component not found: ${id}`);
+        continue;
       }
 
-      // 2. Apply absolute world transform from 4x4 matrix
-      if (props.matrix) {
+      // Apply absolute world transform from 4x4 matrix
+      if (matrix) {
         // Backend sends 4x4 matrix as nested array [[row0], [row1], [row2], [row3]]
-        // in row-major order. Dynamic rotations (from joints/rotors) are already baked in.
         const mat = new THREE.Matrix4();
         mat.set(
-          props.matrix[0][0], props.matrix[0][1], props.matrix[0][2], props.matrix[0][3],
-          props.matrix[1][0], props.matrix[1][1], props.matrix[1][2], props.matrix[1][3],
-          props.matrix[2][0], props.matrix[2][1], props.matrix[2][2], props.matrix[2][3],
-          props.matrix[3][0], props.matrix[3][1], props.matrix[3][2], props.matrix[3][3]
+          matrix[0][0], matrix[0][1], matrix[0][2], matrix[0][3],
+          matrix[1][0], matrix[1][1], matrix[1][2], matrix[1][3],
+          matrix[2][0], matrix[2][1], matrix[2][2], matrix[2][3],
+          matrix[3][0], matrix[3][1], matrix[3][2], matrix[3][3]
         );
 
         // Apply the matrix and decompose it to update position/rotation/scale
@@ -140,23 +224,6 @@ export class Scene3D {
         model.matrixAutoUpdate = false;
       }
     }
-
-    // Remove models no longer in the backend
-    for (const name of Object.keys(this._components)) {
-      if (!seenNames.has(name)) {
-        const model = this._components[name];
-        if (model.parent) model.parent.remove(model);
-        delete this._components[name];
-      }
-    }
-  }
-
-  /**
-   * Called on each WebSocket snapshot to update scene and UI.
-   * @param {Object} snapshot  Scene snapshot from backend.
-   */
-  updateFromSnapshot(snapshot) {
-    this._applySnapshot(snapshot);
   }
 
   // ── Resize handling ───────────────────────────────────────────────────────

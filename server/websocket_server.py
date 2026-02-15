@@ -24,6 +24,17 @@ class WebSocketServer:
     async def handler(self, websocket):
         print(f"[ws] Client connected: {websocket.remote_address}")
         self.clients.add(websocket)
+
+        # Send scene definition on initial connection
+        try:
+            scene_definition = self.scene.static_scene_definition()
+            await websocket.send(json.dumps(scene_definition))
+            print(f"[ws] Sent scene definition to {websocket.remote_address}")
+        except websockets.ConnectionClosed:
+            self.clients.discard(websocket)
+            print(f"[ws] Client disconnected during scene definition send: {websocket.remote_address}")
+            return
+
         try:
             await websocket.wait_closed()
         finally:

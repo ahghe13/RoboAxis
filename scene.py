@@ -218,17 +218,22 @@ class Scene:
             "components": components,
         }
 
-    def snapshot(self) -> dict[str, dict]:
-        """Return a flat JSON snapshot of the scene.
+    def snapshot(self) -> dict[str, Any]:
+        """Return a state update snapshot of the scene.
 
-        All components are at the top level (flat dict). Transforms are absolute
-        world transforms represented as 4x4 matrices. Optional 'parent' field
-        preserves hierarchy information for UI purposes.
+        Returns:
+            {
+                "type": "state_update",
+                "components": [
+                    {"id": "component_name", "matrix": [16 numbers]},
+                    ...
+                ]
+            }
         """
-        out: dict[str, dict] = {}
+        components: list[dict[str, Any]] = []
 
-        def add_component(name: str, parent_world_tf: Transform, parent_name: str | None) -> None:
-            """Add a component and its descendants to the flat output dict."""
+        def add_component(name: str, parent_world_tf: Transform) -> None:
+            """Add a component and its descendants to the components list."""
             comp = self._components[name]
             local_tf = self._transforms[name]
 
@@ -243,33 +248,30 @@ class Scene:
             props = comp.snapshot()
 
             # If the component returns a hierarchical tree (e.g., KinematicsChain),
-            # flatten it into the output dict
+            # flatten it into the components list
             if isinstance(props, dict) and len(props) == 1:
                 root_key = next(iter(props))
                 root_val = props[root_key]
                 if isinstance(root_val, dict) and "children" in root_val:
                     # Component is a chain - flatten it
-                    _flatten_chain(root_val, world_tf, parent_name, out)
+                    _flatten_chain(root_val, world_tf)
                     # Process scene children (if any)
                     for child_name in self._children.get(name, []):
-                        add_component(child_name, world_tf, name)
+                        add_component(child_name, world_tf)
                     return
 
-            # Standard component snapshot
-            props["name"] = name
-            props["matrix"] = world_tf.to_matrix_list()
-            if parent_name is not None:
-                props["parent"] = parent_name
-
-            out[name] = props
+            # Standard component snapshot - just id and matrix
+            components.append({
+                "id": name,
+                "matrix": world_tf.to_matrix_list(),
+            })
 
             # Process scene children
             for child_name in self._children.get(name, []):
-                add_component(child_name, world_tf, name)
+                add_component(child_name, world_tf)
 
-        def _flatten_chain(node: dict, parent_tf: Transform, parent_name: str | None,
-                          output: dict[str, dict]) -> None:
-            """Recursively flatten a kinematic chain into the output dict."""
+        def _flatten_chain(node: dict, parent_tf: Transform) -> None:
+            """Recursively flatten a kinematic chain into the components list."""
             name = node.get("name")
             if not name:
                 return
@@ -288,24 +290,23 @@ class Scene:
             # Compute world transform
             world_tf = parent_tf.compose(local_tf)
 
-            # Add to flat output
-            props = dict(node)
-            props["matrix"] = world_tf.to_matrix_list()
-            props.pop("transform", None)  # Remove old format
-            props.pop("children", None)   # Remove nesting
-            if parent_name is not None:
-                props["parent"] = parent_name
-
-            output[name] = props
+            # Add to components list - just id and matrix
+            components.append({
+                "id": name,
+                "matrix": world_tf.to_matrix_list(),
+            })
 
             # Process children
             if "children" in node:
                 for child_node in node["children"].values():
-                    _flatten_chain(child_node, world_tf, name, output)
+                    _flatten_chain(child_node, world_tf)
 
         # Process all root nodes
         identity = Transform()
         for name in [n for n, p in self._parents.items() if p is None]:
-            add_component(name, identity, None)
+            add_component(name, identity)
 
-        return out
+        return {
+            "type": "state_update",
+            "components": components,
+        }
