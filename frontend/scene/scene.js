@@ -101,60 +101,44 @@ export class Scene3D {
 
   /**
    * Apply a scene snapshot: create/update/remove 3D models to match.
-   * @param {Object} data  Hierarchical snapshot from backend (nested children).
+   * @param {Object} data  Flat snapshot from backend (name → props).
+   *                       Transforms are absolute world matrices (4x4).
    */
   _applySnapshot(data) {
     const seenNames = new Set();
 
-    // Recursive function to process a node and its children
-    const processNode = (props, parentModel) => {
-      const name = props.name;
+    // Process each component (flat iteration)
+    for (const [name, props] of Object.entries(data)) {
       seenNames.add(name);
 
       // 1. Get or create the model
       let model = this._components[name];
       if (!model) {
         const Ctor = MODEL_MAP[props.type];
-        if (!Ctor) return;
+        if (!Ctor) continue;
         model = new Ctor();
         model.name = name;
         this._components[name] = model;
+        this.scene.add(model);  // Add directly to scene (world space)
       }
 
-      // 2. Attach to parent (or scene root)
-      const targetParent = parentModel || this.scene;
-      if (model.parent !== targetParent) {
-        targetParent.add(model);
-      }
-
-      // 3. Update local transform (relative to parent)
-      if (props.transform) {
-        const t = props.transform;
-        model.position.set(...t.position);
-        model.rotation.set(
-          THREE.MathUtils.degToRad(t.rotation[0]),
-          THREE.MathUtils.degToRad(t.rotation[1]),
-          THREE.MathUtils.degToRad(t.rotation[2]),
+      // 2. Apply absolute world transform from 4x4 matrix
+      if (props.matrix) {
+        // Backend sends 4x4 matrix as nested array [[row0], [row1], [row2], [row3]]
+        // in row-major order. Dynamic rotations (from joints/rotors) are already baked in.
+        const mat = new THREE.Matrix4();
+        mat.set(
+          props.matrix[0][0], props.matrix[0][1], props.matrix[0][2], props.matrix[0][3],
+          props.matrix[1][0], props.matrix[1][1], props.matrix[1][2], props.matrix[1][3],
+          props.matrix[2][0], props.matrix[2][1], props.matrix[2][2], props.matrix[2][3],
+          props.matrix[3][0], props.matrix[3][1], props.matrix[3][2], props.matrix[3][3]
         );
-        model.scale.set(...t.scale);
-      }
 
-      // 4. Update component state
-      if (typeof model.setAngle === 'function' && props.position != null) {
-        model.setAngle(props.position);
+        // Apply the matrix and decompose it to update position/rotation/scale
+        model.matrix.copy(mat);
+        model.matrix.decompose(model.position, model.quaternion, model.scale);
+        model.matrixAutoUpdate = false;
       }
-
-      // 5. Recursively process children
-      if (props.children) {
-        for (const childProps of Object.values(props.children)) {
-          processNode(childProps, model);
-        }
-      }
-    };
-
-    // Process all root nodes
-    for (const rootProps of Object.values(data)) {
-      processNode(rootProps, null);
     }
 
     // Remove models no longer in the backend

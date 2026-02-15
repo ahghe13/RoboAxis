@@ -36,26 +36,11 @@ scene3d.start();
 
 /**
  * Update the details panel readouts from a scene snapshot.
- * Recursively searches the hierarchical snapshot for the first AxisRotor.
+ * Finds the first AxisRotor in the flat snapshot.
  */
 function updateDetailsPanel(snapshot) {
-  // Recursively find the first AxisRotor in the hierarchy
-  function findRotor(node) {
-    if (node.type === 'AxisRotor') return node;
-    if (node.children) {
-      for (const child of Object.values(node.children)) {
-        const found = findRotor(child);
-        if (found) return found;
-      }
-    }
-    return null;
-  }
-
-  let props = null;
-  for (const root of Object.values(snapshot)) {
-    props = findRotor(root);
-    if (props) break;
-  }
+  // Find the first AxisRotor (flat lookup)
+  const props = Object.values(snapshot).find(comp => comp.type === 'AxisRotor');
   if (!props) return;
 
   const angle = document.getElementById('pos-angle');

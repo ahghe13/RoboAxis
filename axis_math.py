@@ -25,6 +25,30 @@ class Transform:
             "scale":    list(self.scale),
         }
 
+    def to_matrix(self) -> np.ndarray:
+        """Convert to a 4x4 transformation matrix.
+
+        Returns a homogeneous transformation matrix that combines
+        rotation, scale, and translation.
+        """
+        # Build rotation matrix (3x3)
+        R = euler_to_matrix(self.rotation)
+
+        # Apply scale to rotation matrix
+        S = np.diag(self.scale)
+        RS = R @ S
+
+        # Build 4x4 homogeneous matrix
+        mat = np.eye(4)
+        mat[:3, :3] = RS
+        mat[:3, 3] = self.position
+
+        return mat
+
+    def to_matrix_list(self) -> list[list[float]]:
+        """Convert to a 4x4 matrix as nested lists (JSON-serializable)."""
+        return self.to_matrix().tolist()
+
     def compose(self, child: Transform) -> Transform:
         """Return the world transform of *child* given *self* as the parent.
 

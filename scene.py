@@ -163,48 +163,100 @@ class Scene:
         return list(self._components.keys())
 
     def snapshot(self) -> dict[str, dict]:
-        """Return a hierarchical JSON snapshot of the scene.
+        """Return a flat JSON snapshot of the scene.
 
-        Components are nested under their parents rather than being flat
-        with parent/children references.
+        All components are at the top level (flat dict). Transforms are absolute
+        world transforms represented as 4x4 matrices. Optional 'parent' field
+        preserves hierarchy information for UI purposes.
         """
-        def build_node(name: str) -> dict:
+        out: dict[str, dict] = {}
+
+        def add_component(name: str, parent_world_tf: Transform, parent_name: str | None) -> None:
+            """Add a component and its descendants to the flat output dict."""
             comp = self._components[name]
+            local_tf = self._transforms[name]
+
+            # For AxisRotor, include the dynamic rotation in the transform
+            if isinstance(comp, AxisRotor):
+                rotor_rotation = Transform(rotation=(0.0, comp.position, 0.0))
+                local_tf = local_tf.compose(rotor_rotation)
+
+            world_tf = parent_world_tf.compose(local_tf)
 
             # Let components generate their own snapshot data
             if hasattr(comp, "snapshot"):
                 props = comp.snapshot()
                 # If the component returns a hierarchical tree (e.g., KinematicsChain),
-                # inline it and skip adding scene children
+                # flatten it into the output dict
                 if isinstance(props, dict) and len(props) == 1:
-                    # Single root in snapshot - might be a chain
                     root_key = next(iter(props))
                     root_val = props[root_key]
                     if isinstance(root_val, dict) and "children" in root_val:
-                        # Component provided its own hierarchy - use it directly
-                        # but apply the scene transform to the root
-                        root_val["transform"] = self._transforms[name].to_dict()
-                        return root_val
+                        # Component is a chain - flatten it
+                        _flatten_chain(root_val, world_tf, parent_name, out)
+                        # Process scene children (if any)
+                        for child_name in self._children.get(name, []):
+                            add_component(child_name, world_tf, name)
+                        return
 
                 # Standard component snapshot
                 props["name"] = name
-                props["transform"] = self._transforms[name].to_dict()
+                props["matrix"] = world_tf.to_matrix_list()
+                if parent_name is not None:
+                    props["parent"] = parent_name
             else:
                 # Fallback for components without snapshot()
                 props = {"type": type(comp).__name__}
                 props["name"] = name
-                props["transform"] = self._transforms[name].to_dict()
+                props["matrix"] = world_tf.to_matrix_list()
+                if parent_name is not None:
+                    props["parent"] = parent_name
 
-            # Recursively build scene children (not component's internal children)
-            children_names = self._children.get(name, [])
-            if children_names:
-                props["children"] = {
-                    child_name: build_node(child_name)
-                    for child_name in children_names
-                }
+            out[name] = props
 
-            return props
+            # Process scene children
+            for child_name in self._children.get(name, []):
+                add_component(child_name, world_tf, name)
 
-        # Build tree starting from root nodes (those with no parent)
-        root_names = [name for name, parent in self._parents.items() if parent is None]
-        return {name: build_node(name) for name in root_names}
+        def _flatten_chain(node: dict, parent_tf: Transform, parent_name: str | None,
+                          output: dict[str, dict]) -> None:
+            """Recursively flatten a kinematic chain into the output dict."""
+            name = node.get("name")
+            if not name:
+                return
+
+            # Get local transform
+            if "transform" in node:
+                local_dict = node["transform"]
+                local_tf = Transform(
+                    position=tuple(local_dict["position"]),
+                    rotation=tuple(local_dict["rotation"]),
+                    scale=tuple(local_dict["scale"]),
+                )
+            else:
+                local_tf = Transform()
+
+            # Compute world transform
+            world_tf = parent_tf.compose(local_tf)
+
+            # Add to flat output
+            props = dict(node)
+            props["matrix"] = world_tf.to_matrix_list()
+            props.pop("transform", None)  # Remove old format
+            props.pop("children", None)   # Remove nesting
+            if parent_name is not None:
+                props["parent"] = parent_name
+
+            output[name] = props
+
+            # Process children
+            if "children" in node:
+                for child_node in node["children"].values():
+                    _flatten_chain(child_node, world_tf, name, output)
+
+        # Process all root nodes
+        identity = Transform()
+        for name in [n for n, p in self._parents.items() if p is None]:
+            add_component(name, identity, None)
+
+        return out
