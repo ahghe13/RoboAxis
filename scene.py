@@ -20,7 +20,6 @@ from __future__ import annotations
 from typing import Any
 
 from axis_math import Transform
-from component_interface import SceneComponent
 
 
 # ── Scene ────────────────────────────────────────────────────────────────────
@@ -34,7 +33,7 @@ class Scene:
         self._parents: dict[str, str | None] = {}    # name → parent name
         self._children: dict[str, list[str]] = {}    # name → child names
 
-    def add(self, name: str, component: SceneComponent,
+    def add(self, name: str, component: Any,
             transform: Transform | None = None,
             parent: str | None = None) -> None:
         """Register a component, optionally parented to another.

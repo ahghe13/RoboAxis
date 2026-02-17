@@ -9,7 +9,6 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from axis_math import Transform
-from component_interface import SceneComponent
 
 
 class AxisBase:
