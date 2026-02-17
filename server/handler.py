@@ -9,7 +9,10 @@ Routes:
     GET  /api/scene                  → JSON snapshot of the scene (dynamic state)
     GET  /api/scene/definition       → static scene definition (structure only)
     GET  /api/config                 → server configuration (ws_port, etc.)
-    POST /api/scene/<name>/position  → set target position for an axis
+    POST /api/scene/<id>/position    → set target position for an axis
+    POST /api/scene/<id>/joints      → set joint angles for a ThreeAxisRobot
+                                       body: {"shoulder": deg, "elbow": deg, "wrist": deg}
+                                       all fields optional; omitted joints keep current angle
 """
 from __future__ import annotations
 
@@ -48,16 +51,16 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         path = self.path.split("?")[0]
-
-        # POST /api/scene/<name>/position
         parts = path.strip("/").split("/")
-        if (
-            len(parts) == 4
-            and parts[0] == "api"
-            and parts[1] == "scene"
-            and parts[3] == "position"
-        ):
-            self._set_position(parts[2])
+
+        if len(parts) == 4 and parts[0] == "api" and parts[1] == "scene":
+            name, action = parts[2], parts[3]
+            if action == "position":
+                self._set_position(name)
+            elif action == "joints":
+                self._set_joint_angles(name)
+            else:
+                self._send_error(404, f"Not found: {path}")
         else:
             self._send_error(404, f"Not found: {path}")
 
@@ -86,6 +89,42 @@ class Handler(BaseHTTPRequestHandler):
 
         component.set_absolute_position(target)
         self._send_json(200, {"name": name, "target": target})
+
+    def _set_joint_angles(self, name: str) -> None:
+        if self.scene is None:
+            self._send_error(503, "No scene available")
+            return
+
+        try:
+            component = self.scene.get(name)
+        except KeyError:
+            self._send_error(404, f"Component not found: {name}")
+            return
+
+        if not hasattr(component, "set_joint_angles") or not hasattr(component, "get_joint_angles"):
+            self._send_error(400, f"Component '{name}' does not support joint control")
+            return
+
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            body = json.loads(self.rfile.read(length))
+        except (json.JSONDecodeError, ValueError) as e:
+            self._send_error(400, f"Invalid request body: {e}")
+            return
+
+        current = component.get_joint_angles()
+        try:
+            angles = {
+                "shoulder": float(body.get("shoulder", current["shoulder"])),
+                "elbow":    float(body.get("elbow",    current["elbow"])),
+                "wrist":    float(body.get("wrist",    current["wrist"])),
+            }
+        except (ValueError, TypeError) as e:
+            self._send_error(400, f"Invalid angle value: {e}")
+            return
+
+        component.set_joint_angles(**angles)
+        self._send_json(200, {"name": name, "joints": angles})
 
     def _serve_scene(self) -> None:
         if self.scene is None:

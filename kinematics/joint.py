@@ -14,6 +14,7 @@ from __future__ import annotations
 from typing import Any
 
 from axis_math import Transform
+from simulation.servo_motor import ServoMotor
 
 
 class Joint:
@@ -21,32 +22,53 @@ class Joint:
     A single degree of freedom (DoF) in a kinematic chain.
 
     Joints connect links and introduce articulation. The joint's current
-    state (e.g., angle for revolute joints) determines its effective
+    angle (read from the internal ServoMotor) determines its effective
     transform at runtime.
 
     Attributes
     ----------
     name      : str        Identifier for this joint.
     axis      : str        Axis of rotation: 'x', 'y', or 'z' (revolute only).
-    position  : float      Current joint value (degrees for revolute).
+    position  : float      Current joint angle in degrees (read from motor).
     """
 
-    def __init__(self, name: str, axis: str = 'y') -> None:
+    def __init__(self, name: str, axis: str = 'y',
+                 max_speed: float = 180.0, acceleration: float = 60.0) -> None:
         """
         Create a revolute joint rotating about the given axis.
 
         Parameters
         ----------
-        name : str
-            Identifier for this joint.
-        axis : str
-            Rotation axis: 'x', 'y', or 'z' (default: 'y').
+        name         : str    Identifier for this joint.
+        axis         : str    Rotation axis: 'x', 'y', or 'z' (default: 'y').
+        max_speed    : float  Top speed in °/s (default: 180).
+        acceleration : float  Ramp rate in °/s² (default: 60).
         """
         if axis not in ('x', 'y', 'z'):
             raise ValueError(f"Invalid axis '{axis}', must be 'x', 'y', or 'z'")
         self.name = name
         self.axis = axis
-        self.position = 0.0
+        self._motor = ServoMotor(max_speed=max_speed, acceleration=acceleration)
+
+    @property
+    def position(self) -> float:
+        """Current joint angle in degrees, normalised to [0, 360)."""
+        return self._motor.position
+
+    @property
+    def speed(self) -> float:
+        """Instantaneous joint speed in degrees per second."""
+        return self._motor.speed
+
+    @property
+    def is_moving(self) -> bool:
+        """True while the joint is in motion."""
+        return self._motor.is_moving
+
+    @property
+    def motor(self) -> ServoMotor:
+        """Direct access to the underlying ServoMotor."""
+        return self._motor
 
     def get_transform(self) -> Transform:
         """
@@ -63,8 +85,8 @@ class Joint:
         return Transform(rotation=rotation)
 
     def set_position(self, value: float) -> None:
-        """Set the joint position (degrees)."""
-        self.position = value
+        """Command the joint to move to *value* degrees (non-blocking)."""
+        self._motor.set_absolute_position(value)
 
     def snapshot(self) -> dict[str, Any]:
         """Return JSON-serializable state for this joint."""
@@ -73,4 +95,6 @@ class Joint:
             "name": self.name,
             "axis": self.axis,
             "position": self.position,
+            "speed": self.speed,
+            "is_moving": self.is_moving,
         }
