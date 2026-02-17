@@ -190,3 +190,16 @@ html, body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+.st-row.st-selected {
+  background: rgba(232, 146, 42, 0.15);
+}
+
+.st-row.st-selected .st-label {
+  color: var(--amber);
+}
+
+.details-empty {
+  font-style: italic;
+  color: var(--text-dim);
+}

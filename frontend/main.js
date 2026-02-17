@@ -9,10 +9,10 @@
  *   - Start the render loop
  */
 
-import { Scene3D }           from '/static/scene/scene.js';
-import { mountDetailsPanel } from '/static/panels/details_panel.js';
-import { mountSceneTree }    from '/static/panels/scene_tree.js';
-import { WebSocketClient }   from '/static/websocket_client.js';
+import { Scene3D }                                    from '/static/scene/scene.js';
+import { mountDetailsPanel, showComponentDetails }   from '/static/panels/details_panel.js';
+import { mountSceneTree }                            from '/static/panels/scene_tree.js';
+import { WebSocketClient }                           from '/static/websocket_client.js';
 
 mountDetailsPanel();
 
@@ -29,12 +29,11 @@ new WebSocketClient(
   (definition) => {
     console.log('[main] Received scene definition');
     scene3d.buildFromDefinition(definition);
-    mountSceneTree(definition);
+    mountSceneTree(definition, showComponentDetails);
   },
   // On state update (subsequent messages)
   (update) => {
     scene3d.updateFromState(update);
-    // TODO: updateDetailsPanel if needed
   }
 );
 

@@ -4,50 +4,60 @@
  * Builds and mounts the #details-panel sidebar into the #app grid.
  *
  * Usage:
- *   import { mountDetailsPanel } from '/static/details_panel.js';
+ *   import { mountDetailsPanel, showComponentDetails } from '/static/panels/details_panel.js';
  *   mountDetailsPanel();
+ *   showComponentDetails(component);   // call when a tree node is selected
  */
+
+const FIELD_LABELS = {
+  type:       'Type',
+  axis:       'Axis',
+  parent:     'Parent',
+  length:     'Length',
+  model_file: 'Model',
+  model_body: 'Body',
+  max_speed:  'Max speed',
+  acceleration: 'Accel',
+};
 
 export function mountDetailsPanel() {
   const panel = document.createElement('aside');
   panel.id = 'details-panel';
+  _renderEmpty(panel);
+  document.getElementById('app').appendChild(panel);
+}
+
+export function showComponentDetails(component) {
+  const panel = document.getElementById('details-panel');
+  if (!panel) return;
+
+  // Fields to show: everything except id (used as the heading)
+  const entries = Object.entries(component).filter(([k]) => k !== 'id');
+
+  const rows = entries.map(([k, v]) => {
+    const label = FIELD_LABELS[k] || k;
+    return `
+      <div class="readout">
+        <span class="key">${label}</span>
+        <span class="value">${v ?? '—'}</span>
+      </div>`;
+  }).join('');
+
   panel.innerHTML = `
     <div class="panel-section">
-      <div class="panel-label">Position</div>
-      <div class="readout">
-        <span class="key">Angle</span>
-        <span class="value" id="pos-angle">0.00°</span>
-      </div>
+      <div class="panel-label">${component.id}</div>
+      ${rows}
     </div>
+  `;
+}
 
-    <div class="divider"></div>
-
+function _renderEmpty(panel) {
+  panel.innerHTML = `
     <div class="panel-section">
-      <div class="panel-label">Motion</div>
+      <div class="panel-label">Details</div>
       <div class="readout">
-        <span class="key">Speed</span>
-        <span class="value" id="pos-speed">0.0 °/s</span>
-      </div>
-      <div class="readout">
-        <span class="key">State</span>
-        <span class="value" id="pos-state">idle</span>
-      </div>
-    </div>
-
-    <div class="divider"></div>
-
-    <div class="panel-section">
-      <div class="panel-label">Parameters</div>
-      <div class="readout">
-        <span class="key">Max speed</span>
-        <span class="value" id="param-speed">—</span>
-      </div>
-      <div class="readout">
-        <span class="key">Accel</span>
-        <span class="value" id="param-accel">—</span>
+        <span class="key details-empty">No component selected</span>
       </div>
     </div>
   `;
-
-  document.getElementById('app').appendChild(panel);
 }

@@ -6,7 +6,7 @@
  *
  * Usage:
  *   import { mountSceneTree } from '/static/panels/scene_tree.js';
- *   mountSceneTree(sceneDefinition);
+ *   mountSceneTree(sceneDefinition, (component) => { ... });
  */
 
 const TYPE_ICONS = {
@@ -18,20 +18,21 @@ const TYPE_ICONS = {
   AxisRotor:        '⟳',
 };
 
+// Currently highlighted row element
+let _selectedRow = null;
+
 /**
  * Build a hierarchical tree structure from flat component list.
  * @param {Array} components - Flat list of components with parent references
- * @returns {Object} Map of component id to { component, children }
+ * @returns {Map} Map of component id to { component, children }
  */
 function buildHierarchy(components) {
   const hierarchy = new Map();
 
-  // Initialize all components
   for (const comp of components) {
     hierarchy.set(comp.id, { component: comp, children: [] });
   }
 
-  // Build parent-child relationships
   for (const comp of components) {
     if (comp.parent && hierarchy.has(comp.parent)) {
       hierarchy.get(comp.parent).children.push(comp.id);
@@ -43,10 +44,11 @@ function buildHierarchy(components) {
 
 /**
  * Build a single tree node (li) for a component.
- * @param {Object} node - Node from hierarchy with { component, children }
- * @param {Map} hierarchy - Full hierarchy map
+ * @param {Object} node      - Node from hierarchy with { component, children }
+ * @param {Map}    hierarchy - Full hierarchy map
+ * @param {Function|null} onSelect - Called with the component object when selected
  */
-function buildNode(node, hierarchy) {
+function buildNode(node, hierarchy, onSelect) {
   const { component, children } = node;
   const li = document.createElement('li');
   const hasChildren = children.length > 0;
@@ -72,27 +74,40 @@ function buildNode(node, hierarchy) {
 
   li.appendChild(row);
 
+  // Selection: clicking the row (but not the toggle) selects this component
+  row.style.cursor = 'pointer';
+  row.addEventListener('click', (e) => {
+    if (e.target === toggle) return;
+
+    // Expand/collapse if has children
+    if (hasChildren) {
+      const collapsed = ul.classList.toggle('st-collapsed');
+      toggle.textContent = collapsed ? '▸' : '▾';
+    }
+
+    // Update selection highlight
+    if (_selectedRow) _selectedRow.classList.remove('st-selected');
+    _selectedRow = row;
+    row.classList.add('st-selected');
+
+    if (onSelect) onSelect(component);
+  });
+
   // Children (collapsed by default)
+  let ul;
   if (hasChildren) {
-    const ul = document.createElement('ul');
+    ul = document.createElement('ul');
     ul.className = 'st-children st-collapsed';
 
     for (const childId of children) {
       const childNode = hierarchy.get(childId);
       if (childNode) {
-        ul.appendChild(buildNode(childNode, hierarchy));
+        ul.appendChild(buildNode(childNode, hierarchy, onSelect));
       }
     }
     li.appendChild(ul);
 
     toggle.addEventListener('click', () => {
-      const collapsed = ul.classList.toggle('st-collapsed');
-      toggle.textContent = collapsed ? '▸' : '▾';
-    });
-
-    row.style.cursor = 'pointer';
-    row.addEventListener('click', (e) => {
-      if (e.target === toggle) return;  // already handled
       const collapsed = ul.classList.toggle('st-collapsed');
       toggle.textContent = collapsed ? '▸' : '▾';
     });
@@ -103,14 +118,16 @@ function buildNode(node, hierarchy) {
 
 /**
  * Mount the scene tree as a standalone left-side panel.
- * @param {Object} sceneDefinition - Scene definition with { type, components }
+ * @param {Object}        sceneDefinition - Scene definition with { type, components }
+ * @param {Function|null} onSelect        - Called with component object on selection
  */
-export function mountSceneTree(sceneDefinition) {
+export function mountSceneTree(sceneDefinition, onSelect = null) {
+  // Reset selection state when tree is rebuilt
+  _selectedRow = null;
+
   // Remove existing panel if any
   const existingPanel = document.getElementById('scene-tree-panel');
-  if (existingPanel) {
-    existingPanel.remove();
-  }
+  if (existingPanel) existingPanel.remove();
 
   const panel = document.createElement('aside');
   panel.id = 'scene-tree-panel';
@@ -122,23 +139,17 @@ export function mountSceneTree(sceneDefinition) {
   const tree = document.createElement('ul');
   tree.className = 'scene-tree';
 
-  // Build hierarchy from flat component list
   const hierarchy = buildHierarchy(sceneDefinition.components);
-
-  // Find root components (those with no parent or parent is null)
   const roots = sceneDefinition.components.filter(c => !c.parent);
 
   for (const root of roots) {
     const node = hierarchy.get(root.id);
-    if (node) {
-      tree.appendChild(buildNode(node, hierarchy));
-    }
+    if (node) tree.appendChild(buildNode(node, hierarchy, onSelect));
   }
 
   section.appendChild(tree);
   panel.appendChild(section);
 
-  // Insert before canvas-pane so grid order is: header, scene-tree, canvas, panel
   const app = document.getElementById('app');
   const canvas = document.getElementById('canvas-pane');
   app.insertBefore(panel, canvas);
