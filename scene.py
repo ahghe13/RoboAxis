@@ -9,25 +9,18 @@ relationships so a kinematic chain can be constructed.
 Usage:
     from axis_math import Transform
     from scene import Scene
-    from simulation import RotaryAxis
 
     scene = Scene()
-    scene.add("base", RotaryAxis(max_speed=180, acceleration=60),
-              transform=Transform(position=(0, 0, 0)))
-    scene.add("elbow", RotaryAxis(max_speed=90, acceleration=30),
-              parent="base", transform=Transform(position=(0, 1, 0)))
+    scene.add("robot", robot, transform=Transform(position=(0, 0, 0)))
+    scene.add("tool", tool, parent="robot", transform=Transform(position=(0, 1, 0)))
     print(scene.snapshot())
 """
 from __future__ import annotations
 
 from typing import Any
 
-from axis_components import AxisBase, AxisRotor
 from axis_math import Transform
 from component_interface import SceneComponent
-
-# Default base height — must match the frontend AxisBase model.
-_BASE_HEIGHT = 0.3
 
 
 # ── Scene ────────────────────────────────────────────────────────────────────
@@ -39,44 +32,17 @@ class Scene:
         self._components: dict[str, Any] = {}
         self._transforms: dict[str, Transform] = {}
         self._parents: dict[str, str | None] = {}    # name → parent name
-        self._children: dict[str, list[str]] = {}     # name → child names
-        self._aliases: dict[str, str] = {}            # user name → rotor node
+        self._children: dict[str, list[str]] = {}    # name → child names
 
     def add(self, name: str, component: SceneComponent,
             transform: Transform | None = None,
             parent: str | None = None) -> None:
         """Register a component, optionally parented to another.
 
-        If *component* has a ``motor`` attribute (i.e. a RotaryAxis), two
-        scene nodes are created automatically: ``{name}_base`` (stationary)
-        and ``{name}_rotor`` (child, receives the simulation state).
-        Subsequent calls that use ``parent=name`` will attach to the rotor.
-
         *transform* is the local offset relative to the parent (or world
         origin if no parent).
         """
-        # Resolve alias so children attach to the rotor of the parent axis
-        parent = self._aliases.get(parent, parent)
-
-        if hasattr(component, "motor"):
-            self._add_rotary_axis(name, component, transform, parent)
-        else:
-            self._add_node(name, component, transform, parent)
-
-    def _add_rotary_axis(self, name: str, axis: Any,
-                         transform: Transform | None,
-                         parent: str | None) -> None:
-        base_name = f"{name}_base"
-        rotor_name = f"{name}_rotor"
-
-        self._add_node(base_name, AxisBase(), transform, parent)
-        self._add_node(
-            rotor_name, AxisRotor(axis),
-            Transform(position=(0.0, _BASE_HEIGHT, 0.0)),
-            base_name,
-        )
-        # Alias so parent="axis_1" resolves to the rotor
-        self._aliases[name] = rotor_name
+        self._add_node(name, component, transform, parent)
 
     def _add_node(self, name: str, component: Any,
                   transform: Transform | None,
@@ -117,15 +83,8 @@ class Scene:
         return self._components.pop(name)
 
     def get(self, name: str) -> Any:
-        """Return the component registered as *name*.
-
-        For a RotaryAxis alias, returns the underlying simulation object.
-        """
-        resolved = self._aliases.get(name, name)
-        comp = self._components[resolved]
-        if isinstance(comp, AxisRotor):
-            return comp.axis
-        return comp
+        """Return the component registered as *name*."""
+        return self._components[name]
 
     def get_transform(self, name: str) -> Transform:
         """Return the local transform for *name*."""
