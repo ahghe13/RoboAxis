@@ -8,7 +8,7 @@ Re-exports the two main classes so callers can write::
     from simulation import RotaryAxis, ServoMotor
 """
 
-from simulation.rotary_axis import RotaryAxis
 from simulation.servo_motor import ServoMotor
+from simulation.motor import Motor
 
-__all__ = ["RotaryAxis", "ServoMotor"]
+__all__ = ["ServoMotor", "Motor"]

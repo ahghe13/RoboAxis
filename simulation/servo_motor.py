@@ -1,259 +1,270 @@
 """
 servo_motor.py
 --------------
-Rotary axis simulator with realistic acceleration and deceleration profiles.
+High-level rotary axis controller built on top of ServoMotor.
 
 Usage:
-    motor = ServoMotor(max_speed=360.0, acceleration=90.0)
-    motor.start()
-    time.sleep(2)
-    print(motor.position)   # degrees
-    motor.stop()
+    from simulation import RotaryAxis
+
+    axis = RotaryAxis(max_speed=180.0, acceleration=60.0)
+    axis.set_absolute_position(270.0)
+    axis.wait_for_move()
+    print(axis.position)   # ~270.0
 """
+from __future__ import annotations
 
 import threading
 import time
-import math
+
+from simulation.motor import Motor
 
 
 class ServoMotor:
     """
-    Simulates a rotary servo motor with trapezoidal velocity profiling.
+    High-level rotary axis controller built on top of a ServoMotor.
 
-    The motor accelerates from 0 to `max_speed` (deg/s) at a configurable
-    `acceleration` rate (deg/s²), runs at full speed, then decelerates
-    symmetrically back to 0 when stopped.
+    Adds goal-position moves (absolute & relative), runtime speed/acceleration
+    tuning, and open-ended jog in either direction.
 
-    All simulation runs on a background daemon thread; the public API is
-    fully thread-safe.
+    Coordinate system
+    -----------------
+    Positions are expressed in degrees.  ``position`` is always normalised to
+    [0, 360).  Moves always travel the *shortest angular path* unless a
+    direction is forced by a jog command.
 
     Parameters
-    ----------
-    max_speed    : float  Target cruising speed in degrees per second (default 360).
-    acceleration : float  Rate of speed change in degrees per second² (default 90).
-    direction    : int    +1 for clockwise, -1 for counter-clockwise (default +1).
-    tick_rate    : float  Simulation update frequency in Hz (default 200).
+    ----------z
+    max_speed    : float  Top speed in °/s (default 180).
+    acceleration : float  Ramp rate in °/s² (default 60).
+    tick_rate    : float  Simulation frequency forwarded to ServoMotor (default 200 Hz).
     """
+
+    # How close (degrees) is "close enough" to declare arrival
+    _POSITION_TOLERANCE: float = 0.05
 
     def __init__(
         self,
-        max_speed: float = 360.0,
-        acceleration: float = 90.0,
-        direction: int = 1,
+        max_speed: float = 180.0,
+        acceleration: float = 60.0,
         tick_rate: float = 200.0,
-    ):
+    ) -> None:
+        self._motor = Motor(
+            max_speed=max_speed,
+            acceleration=acceleration,
+            tick_rate=tick_rate,
+        )
+
+        # Move-tracking state (protected by _axis_lock)
+        self._axis_lock = threading.Lock()
+        self._goal: float | None = None        # target in raw (unbounded) degrees
+        self._jogging: bool = False            # True while an open-ended jog is active
+        self._move_thread: threading.Thread | None = None
+
+    # ------------------------------------------------------------------
+    # Configuration
+    # ------------------------------------------------------------------
+
+    def set_speed(self, max_speed: float) -> None:
+        """Set the cruising speed in degrees per second."""
         if max_speed <= 0:
             raise ValueError("max_speed must be positive.")
+        with self._motor._lock:
+            self._motor._max_speed = float(max_speed)
+
+    def set_acceleration(self, acceleration: float) -> None:
+        """Set the acceleration / deceleration ramp rate in degrees per second squared."""
         if acceleration <= 0:
             raise ValueError("acceleration must be positive.")
-        if direction not in (1, -1):
-            raise ValueError("direction must be +1 or -1.")
-
-        self._max_speed = float(max_speed)
-        self._acceleration = float(acceleration)
-        self._direction = direction
-        self._tick_interval = 1.0 / tick_rate
-
-        # Internal state (protected by _lock)
-        self._lock = threading.Lock()
-        self._position: float = 0.0   # degrees, unbounded (wraps for display)
-        self._speed: float = 0.0      # current speed, deg/s  (always >= 0)
-        self._running: bool = False   # True while motor should be spinning/accel
-        self._decelerating: bool = False  # True during stop ramp-down
-
-        # Background simulation thread
-        self._thread = threading.Thread(target=self._simulate, daemon=True)
-        self._thread.start()
+        with self._motor._lock:
+            self._motor._acceleration = float(acceleration)
 
     # ------------------------------------------------------------------
-    # Public API
+    # Goal-position moves
     # ------------------------------------------------------------------
 
-    def start(self) -> None:
+    def set_absolute_position(self, target_deg: float) -> None:
         """
-        Command the motor to begin rotating.
+        Move to an absolute angle (degrees).
 
-        The motor will ramp up from its current speed to `max_speed` using
-        the configured acceleration profile.  Calling start() while already
-        running has no effect.
+        The axis always travels the *shortest* arc to the target.
+        The call returns immediately; the move runs on a background thread.
+        Use ``wait_for_move()`` to block until arrival.
         """
-        with self._lock:
-            if self._running and not self._decelerating:
-                return  # already at cruise — nothing to do
-            self._running = True
-            self._decelerating = False
+        current = self._motor.position   # [0, 360)
+        target  = target_deg % 360.0
 
-    def stop(self) -> None:
-        """
-        Command the motor to decelerate to a stop.
+        # Shortest-path delta in (-180, +180]
+        delta = (target - current + 180.0) % 360.0 - 180.0
+        self._start_move(delta)
 
-        The motor will ramp down from its current speed to 0.  Calling
-        stop() on an already-stopped motor has no effect.
+    def set_relative_position(self, delta_deg: float) -> None:
         """
-        with self._lock:
-            if not self._running and self._speed == 0.0:
-                return
-            self._running = False
-            self._decelerating = True
+        Move by a relative angle (positive = CW, negative = CCW).
+
+        The call returns immediately; use ``wait_for_move()`` to block.
+        """
+        self._start_move(delta_deg)
+
+    def wait_for_move(self, timeout: float | None = None) -> bool:
+        """
+        Block until the current move completes (or timeout expires).
+
+        Returns True if the move finished, False if it timed out.
+        """
+        with self._axis_lock:
+            thread = self._move_thread
+        if thread is None:
+            return True
+        thread.join(timeout=timeout)
+        return not thread.is_alive()
+
+    # ------------------------------------------------------------------
+    # Jog
+    # ------------------------------------------------------------------
+
+    def jog_cw(self) -> None:
+        """Start jogging clockwise at the configured speed. Runs until jog_stop()."""
+        self._start_jog(direction=1)
+
+    def jog_ccw(self) -> None:
+        """Start jogging counter-clockwise at the configured speed. Runs until jog_stop()."""
+        self._start_jog(direction=-1)
+
+    def jog_stop(self) -> None:
+        """Stop an active jog (or any in-progress move) with a deceleration ramp."""
+        with self._axis_lock:
+            self._jogging = False
+            self._goal = None
+        self._motor.stop()
+
+    # ------------------------------------------------------------------
+    # Status
+    # ------------------------------------------------------------------
 
     @property
     def position(self) -> float:
-        """
-        Current angular position in degrees, normalised to [0, 360).
-        """
-        with self._lock:
-            return self._position % 360.0
-
-    @property
-    def raw_position(self) -> float:
-        """
-        Cumulative angular position in degrees (unbounded — counts full
-        rotations, so e.g. 720° means exactly two full turns from start).
-        """
-        with self._lock:
-            return self._position
+        """Current axis position in degrees, normalised to [0, 360)."""
+        return self._motor.position
 
     @property
     def speed(self) -> float:
-        """Current rotational speed in degrees per second."""
-        with self._lock:
-            return self._speed
+        """Instantaneous shaft speed in degrees per second."""
+        return self._motor.speed
 
     @property
-    def is_running(self) -> bool:
-        """True if the motor is moving (including during ramp-up/down)."""
-        with self._lock:
-            return self._speed > 0.0
+    def is_moving(self) -> bool:
+        """True while the axis is in motion (move or jog)."""
+        return self._motor.is_running
 
     @property
-    def state(self) -> str:
-        """Human-readable motor state: 'idle', 'accelerating', 'cruising', or 'decelerating'."""
-        with self._lock:
-            if self._speed == 0.0 and not self._running:
-                return "idle"
-            if self._decelerating:
-                return "decelerating"
-            if self._running and self._speed < self._max_speed:
-                return "accelerating"
-            return "cruising"
-
-    def reset_position(self) -> None:
-        """Zero the position counter (motor may still be moving)."""
-        with self._lock:
-            self._position = 0.0
-
-    def set_direction(self, direction: int) -> None:
-        """
-        Change rotation direction (+1 or -1).
-
-        For a clean direction reversal, stop the motor first.
-        """
-        if direction not in (1, -1):
-            raise ValueError("direction must be +1 or -1.")
-        with self._lock:
-            self._direction = direction
-
-    # ------------------------------------------------------------------
-    # Simulation loop (runs in background thread)
-    # ------------------------------------------------------------------
-
-    def _simulate(self) -> None:
-        """Background thread: advances position using a trapezoidal velocity profile."""
-        last_time = time.perf_counter()
-
-        while True:
-            time.sleep(self._tick_interval)
-            now = time.perf_counter()
-            dt = now - last_time
-            last_time = now
-
-            with self._lock:
-                if self._running:
-                    # Accelerate toward max_speed
-                    if self._speed < self._max_speed:
-                        self._speed = min(
-                            self._speed + self._acceleration * dt,
-                            self._max_speed,
-                        )
-                elif self._decelerating:
-                    # Decelerate toward zero
-                    if self._speed > 0.0:
-                        self._speed = max(
-                            self._speed - self._acceleration * dt,
-                            0.0,
-                        )
-                    if self._speed == 0.0:
-                        self._decelerating = False
-
-                # Integrate position
-                self._position += self._direction * self._speed * dt
-
-    # ------------------------------------------------------------------
-    # Dunder helpers
-    # ------------------------------------------------------------------
+    def motor(self) -> Motor:
+        """Direct access to the underlying ServoMotor (read-only by convention)."""
+        return self._motor
 
     def __repr__(self) -> str:
+        goal_str = f"{self._goal % 360.0:.2f}°" if self._goal is not None else "none"
         return (
-            f"ServoMotor("
-            f"state={self.state!r}, "
-            f"position={self.position:.2f}°, "
-            f"speed={self.speed:.1f} deg/s)"
+            f"RotaryAxis("
+            f"pos={self.position:.2f}°, "
+            f"speed={self.speed:.1f}°/s, "
+            f"motor={self._motor.state}, "
+            f"goal={goal_str})"
         )
 
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
 
-# ---------------------------------------------------------------------------
-# Main — runs when the module is executed directly
-# ---------------------------------------------------------------------------
+    def _start_move(self, delta_deg: float) -> None:
+        """Common entry point for absolute and relative moves."""
+        # Cancel any ongoing move / jog
+        with self._axis_lock:
+            self._jogging = False
+            self._goal = self._motor.raw_position + delta_deg
 
-def _print_loop(motor: ServoMotor, stop_event: threading.Event) -> None:
-    """Prints motor state every 100 ms until stop_event is set."""
-    t0 = time.perf_counter()
-    while not stop_event.is_set():
-        elapsed = time.perf_counter() - t0
-        bar_len = int(motor.speed / motor._max_speed * 30)
-        bar = "█" * bar_len + "░" * (30 - bar_len)
-        print(
-            f"  t={elapsed:6.2f}s | {motor.state:<13} | "
-            f"{motor.speed:6.1f}°/s | {motor.position:7.2f}° [{bar}]"
-        )
-        time.sleep(0.1)
+        self._motor.stop()
+        # Wait for full stop before committing to the new direction
+        while self._motor.is_running:
+            time.sleep(0.005)
 
+        if abs(delta_deg) < self._POSITION_TOLERANCE:
+            return   # already there
 
-def main() -> None:
-    # 1. Create motor
-    motor = ServoMotor(max_speed=360.0, acceleration=90.0)
-    print("Motor created.\n")
+        direction = 1 if delta_deg > 0 else -1
+        self._motor.set_direction(direction)
 
-    # 2. Kick off the parallel print loop in a background thread
-    stop_printing = threading.Event()
-    printer = threading.Thread(target=_print_loop, args=(motor, stop_printing), daemon=True)
-    printer.start()
+        with self._axis_lock:
+            thread = threading.Thread(
+                target=self._move_loop,
+                args=(self._goal,),
+                daemon=True,
+            )
+            self._move_thread = thread
+        thread.start()
 
-    # 3. Start the motor and wait until it reaches cruising speed
-    motor.start()
-    print(">>> Motor started — waiting for cruise speed …\n")
-    while motor.state != "cruising":
-        time.sleep(0.01)
+    def _start_jog(self, direction: int) -> None:
+        """Common entry point for jog CW / CCW."""
+        with self._axis_lock:
+            self._jogging = True
+            self._goal = None
 
-    # 4. Cruise for 5 seconds
-    print("\n>>> Cruising — waiting 5 seconds …\n")
-    time.sleep(5)
+        self._motor.stop()
+        while self._motor.is_running:
+            time.sleep(0.005)
 
-    # 5. Stop the motor
-    motor.stop()
-    print("\n>>> Motor stopping — waiting for full stop …\n")
+        self._motor.set_direction(direction)
+        self._motor.start()
 
-    # 6. Stay alive until the motor has fully stopped
-    while motor.is_running:
-        time.sleep(0.01)
+    def _move_loop(self, goal_raw: float) -> None:
+        """
+        Background thread that watches position and triggers deceleration at
+        the right moment so the motor coasts to a stop exactly at the goal.
 
-    # 7. Shut down the print loop and wait for it to finish its current tick
-    stop_printing.set()
-    printer.join()
+        Uses the kinematic relation:  braking_distance = v^2 / (2 * a)
 
-    print(f"\nMotor stopped. Final position: {motor.position:.2f}°  "
-          f"({motor.raw_position / 360:.2f} total turns)")
+        Edge cases handled
+        ------------------
+        - Negative delta (CCW): remaining is clamped >= 0 so overshoot is
+          treated as arrival rather than causing an infinite loop.
+        - Short moves (delta < min braking distance): stop() is commanded on
+          the first tick; we exit once the motor fully halts rather than
+          waiting for a position threshold that may never be crossed.
+        """
+        self._motor.start()
+        stop_commanded = False
 
+        while True:
+            with self._motor._lock:
+                v         = self._motor._speed
+                a         = self._motor._acceleration
+                raw       = self._motor._position
+                direction = self._motor._direction
 
-if __name__ == "__main__":
-    main()
+            # Positive while en-route; clamped to 0 on overshoot so arrival
+            # is always detected even if the motor coasts past the target.
+            remaining = max(direction * (goal_raw - raw), 0.0)
+
+            # Check for cancellation
+            with self._axis_lock:
+                if self._goal != goal_raw:
+                    return
+
+            # Deceleration lookahead: distance needed to brake from v to 0
+            braking_dist = (v * v) / (2.0 * a) if a > 0 else 0.0
+
+            if remaining <= braking_dist + self._POSITION_TOLERANCE:
+                self._motor.stop()
+                stop_commanded = True
+
+            # Arrival: within tolerance, OR stop was commanded and the motor
+            # has fully halted (handles very short moves cleanly).
+            arrived = remaining <= self._POSITION_TOLERANCE or (
+                stop_commanded and not self._motor.is_running
+            )
+            if arrived:
+                with self._axis_lock:
+                    if self._goal == goal_raw:
+                        self._goal = None
+                return
+
+            time.sleep(0.002)   # 500 Hz polling
