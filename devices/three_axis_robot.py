@@ -21,7 +21,7 @@ from component_interface import SceneComponent
 from kinematics import Joint, KinematicsChain, Link
 
 
-class ThreeAxisRobot:
+class ThreeAxisRobot(SceneComponent):
     """
     A simple 3-DOF serial robot with revolute joints.
 

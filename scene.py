@@ -29,7 +29,7 @@ class Scene:
     """Registry of named components forming a kinematic tree."""
 
     def __init__(self) -> None:
-        self._components: dict[str, Any] = {}
+        self._components: dict[str, SceneComponent] = {}
         self._transforms: dict[str, Transform] = {}
         self._parents: dict[str, str | None] = {}    # name → parent name
         self._children: dict[str, list[str]] = {}    # name → child names
@@ -44,7 +44,7 @@ class Scene:
         """
         self._add_node(name, component, transform, parent)
 
-    def _add_node(self, name: str, component: Any,
+    def _add_node(self, name: str, component: SceneComponent,
                   transform: Transform | None,
                   parent: str | None) -> None:
         if name in self._components:
@@ -60,7 +60,7 @@ class Scene:
         if parent is not None:
             self._children[parent].append(name)
 
-    def remove(self, name: str) -> Any:
+    def remove(self, name: str) -> SceneComponent:
         """Remove a component and reparent its children to the scene root."""
         # Reparent children
         for child in self._children.get(name, []):
@@ -82,7 +82,7 @@ class Scene:
         self._children.pop(name, None)
         return self._components.pop(name)
 
-    def get(self, name: str) -> Any:
+    def get(self, name: str) -> SceneComponent:
         """Return the component registered as *name*."""
         return self._components[name]
 
