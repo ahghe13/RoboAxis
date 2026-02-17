@@ -1,5 +1,5 @@
 """
-component_interface.py
+scene_component.py
 ----------------------
 Protocol interface for scene components.
 

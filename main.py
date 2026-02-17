@@ -20,7 +20,7 @@ import time
 
 from server.websocket_server import WebSocketServer
 from axis_math import Transform
-from scene import Scene
+from scene.scene import Scene
 from server import FrontendServer
 from devices import ThreeAxisRobot
 

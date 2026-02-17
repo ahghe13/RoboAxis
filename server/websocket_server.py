@@ -3,7 +3,7 @@ import json
 
 import websockets
 
-from scene import Scene
+from scene.scene import Scene
 
 
 class WebSocketServer:
