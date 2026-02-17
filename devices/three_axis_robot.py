@@ -100,43 +100,22 @@ class ThreeAxisRobot:
         Returns:
             List of component definitions for all links
         """
+        n = self.name
         return [
             # Base link (parent will be set by Scene to robot's parent)
-            {
-                "id": f"{self.name}_base",
-                "type": "RobotLink",
-                "model_file": "robot.glb",
-                "model_body": "Body",
-                "length": 0.0,
-                "parent": None,  # Will be set by Scene
-            },
-            # Upper arm link (child of base)
-            {
-                "id": f"{self.name}_upper_arm",
-                "type": "RobotLink",
-                "model_file": "robot.glb",
-                "model_body": "Body001",
-                "length": 1.0,
-                "parent": f"{self.name}_base",
-            },
-            # Forearm link (child of upper arm)
-            {
-                "id": f"{self.name}_forearm",
-                "type": "RobotLink",
-                "model_file": "robot.glb",
-                "model_body": "Body002",
-                "length": 0.8,
-                "parent": f"{self.name}_upper_arm",
-            },
-            # End effector link (child of forearm)
-            {
-                "id": f"{self.name}_end_effector",
-                "type": "RobotLink",
-                "model_file": "robot.glb",
-                "model_body": "Body003",
-                "length": 0.3,
-                "parent": f"{self.name}_forearm",
-            },
+            {"id": f"{n}_base",         "type": "RobotLink",  "model_file": "robot.glb", "model_body": "Body",    "length": 0.0, "parent": None},
+            # Shoulder joint
+            {"id": f"{n}_shoulder",     "type": "RobotJoint", "axis": "y", "parent": f"{n}_base"},
+            # Upper arm link
+            {"id": f"{n}_upper_arm",    "type": "RobotLink",  "model_file": "robot.glb", "model_body": "Body001", "length": 1.0, "parent": f"{n}_shoulder"},
+            # Elbow joint
+            {"id": f"{n}_elbow",        "type": "RobotJoint", "axis": "y", "parent": f"{n}_upper_arm"},
+            # Forearm link
+            {"id": f"{n}_forearm",      "type": "RobotLink",  "model_file": "robot.glb", "model_body": "Body002", "length": 0.8, "parent": f"{n}_elbow"},
+            # Wrist joint
+            {"id": f"{n}_wrist",        "type": "RobotJoint", "axis": "y", "parent": f"{n}_forearm"},
+            # End-effector link
+            {"id": f"{n}_end_effector", "type": "RobotLink",  "model_file": "robot.glb", "model_body": "Body003", "length": 0.3, "parent": f"{n}_wrist"},
         ]
 
     def get_local_transform_delta(self) -> Optional[Transform]:
