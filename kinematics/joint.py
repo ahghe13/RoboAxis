@@ -14,10 +14,11 @@ from __future__ import annotations
 from typing import Any
 
 from axis_math import Transform
+from scene.scene_component import SceneComponent
 from simulation.servo_motor import ServoMotor
 
 
-class Joint:
+class Joint(SceneComponent):
     """
     A single degree of freedom (DoF) in a kinematic chain.
 
@@ -44,6 +45,7 @@ class Joint:
         max_speed    : float  Top speed in °/s (default: 180).
         acceleration : float  Ramp rate in °/s² (default: 60).
         """
+        super().__init__()
         if axis not in ('x', 'y', 'z'):
             raise ValueError(f"Invalid axis '{axis}', must be 'x', 'y', or 'z'")
         self.name = name

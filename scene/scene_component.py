@@ -1,60 +1,81 @@
-"""
-scene_component.py
-----------------------
-Protocol interface for scene components.
-
-Components can implement this interface to provide:
-  - get_definition(): Static structure/configuration (type, children, etc.)
-  - snapshot(): Dynamic state (positions, velocities, etc.)
-  - get_local_transform_delta(): Dynamic transform adjustments
-"""
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Optional, Protocol
+import uuid
+from dataclasses import dataclass, field
+from typing import Any, Optional
 
-if TYPE_CHECKING:
-    from axis_math import Transform
+from axis_math import Transform
 
 
-class SceneComponent(Protocol):
-    """Protocol for components that can be added to a Scene.
+@dataclass
+class SceneComponent:
+    """Base node in the scene graph.
 
-    Components implementing this interface can provide both static
-    structure information and dynamic state snapshots.
+    Attributes
+    ----------
+    id        : str                  Unique identifier for this component.
+    transform : Transform            Local transform relative to the parent component.
+    children  : list                 Direct child components in the scene hierarchy.
+    cad_file  : str | None           Path to the CAD file for this component (optional).
+    cad_body  : str | None           Name of the body within the CAD file (optional).
+    parent    : SceneComponent | None  Back-reference to the parent component, or None for root nodes.
     """
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    transform: Transform = field(default_factory=Transform)
+    children: list[SceneComponent] = field(default_factory=list)
+    cad_file: Optional[str] = None
+    cad_body: Optional[str] = None
+    parent: Optional[SceneComponent] = field(default=None, repr=False, compare=False)
 
-    def get_definition(self) -> list[dict[str, Any]]:
-        """Return static component definitions.
+    def get_component_type(self) -> str:
+        """Return the component type identifier for this component."""
+        return "basic_component"
 
-        This describes the component's structure, type, and configuration
-        without any dynamic state. Components may contain multiple
-        sub-components (e.g., a robot with multiple links and joints).
+    def get_state(self, parent_transform: Optional[Transform] = None) -> dict[str, Any]:
+        """Return the current state of this component as a JSON-serialisable dict.
 
-        Returns:
-            List of component definition dicts. Simple components return
-            a single-element list, complex components return multiple.
+        Parameters
+        ----------
+        parent_transform : Transform | None
+            World transform of the parent component. Pass ``None`` (default)
+            for root nodes; an identity transform is used.
         """
-        ...
+        world_tf = (parent_transform or Transform()).compose(self.transform)
 
-    def snapshot(self) -> dict[str, Any]:
-        """Return current dynamic state.
+        return {
+            "id": self.id,
+            "matrix": world_tf.to_matrix().flatten().tolist(),
+        }
 
-        This captures the component's current state including positions,
-        velocities, transforms, and any other time-varying properties.
+    def add_child(self, child: SceneComponent) -> None:
+        """Append *child* to this component's children list and set its parent."""
+        self.children.append(child)
+        child.parent = self
 
-        Returns:
-            State snapshot dict with current values
+    def remove_child(self, child: SceneComponent) -> None:
+        """Remove *child* from this component's children list and clear its parent."""
+        self.children.remove(child)
+        child.parent = None
+
+    def static_definition(self) -> list[dict[str, Any]]:
+        """Return a flat JSON-serialisable list of definitions for this component and all descendants.
+
+        Each entry represents one component. The list is ordered depth-first
+        (parent before children).
         """
-        ...
+        entry: dict[str, Any] = {
+            "id": self.id,
+            "parent": self.parent.id if self.parent is not None else None,
+            "component_type": self.get_component_type(),
+        }
+        if self.cad_file is not None:
+            entry["cad_file"] = self.cad_file
+        if self.cad_body is not None:
+            entry["cad_body"] = self.cad_body
 
-    def get_local_transform_delta(self) -> Optional["Transform"]:
-        """Return dynamic transform adjustment to apply to local transform.
+        result = [entry]
+        for child in self.children:
+            result.extend(child.static_definition())
 
-        For components with dynamic state that affects their transform
-        (e.g., AxisRotor rotation), this returns the transform delta
-        to compose with the static local transform.
+        return result
 
-        Returns:
-            Transform delta, or None if no dynamic adjustment needed
-        """
-        ...
