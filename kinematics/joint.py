@@ -11,7 +11,7 @@ Each Joint represents a degree of freedom (DoF) with variable state.
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 
 from axis_math import Transform
 from scene.scene_component import SceneComponent
@@ -32,6 +32,9 @@ class Joint(SceneComponent):
     axis      : str        Axis of rotation: 'x', 'y', or 'z' (revolute only).
     position  : float      Current joint angle in degrees (read from motor).
     """
+
+    def get_component_type(self) -> str:
+        return "joint"
 
     def __init__(self, name: str, axis: str = 'y',
                  max_speed: float = 180.0, acceleration: float = 60.0) -> None:
@@ -86,17 +89,15 @@ class Joint(SceneComponent):
         }[self.axis]
         return Transform(rotation=rotation)
 
+    def get_state(self, parent_transform: Optional[Transform] = None) -> dict[str, Any]:
+        """Return the joint's world transform plus live motor state."""
+        state = super().get_state(parent_transform)
+        state["position"]     = self.position
+        state["speed"]        = self.speed
+        state["acceleration"] = self._motor._motor._acceleration
+        state["is_moving"]    = self.is_moving
+        return state
+
     def set_position(self, value: float) -> None:
         """Command the joint to move to *value* degrees (non-blocking)."""
         self._motor.set_absolute_position(value)
-
-    def snapshot(self) -> dict[str, Any]:
-        """Return JSON-serializable state for this joint."""
-        return {
-            "type": "Joint",
-            "name": self.name,
-            "axis": self.axis,
-            "position": self.position,
-            "speed": self.speed,
-            "is_moving": self.is_moving,
-        }
