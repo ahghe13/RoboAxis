@@ -23,10 +23,11 @@ class Scene(SceneComponent):
     """
 
     def __init__(self) -> None:
-        super().__init__(id="scene")
+        super().__init__()
+        self.name = "scene"
 
     def get_component_type(self) -> str:
-        return "root"
+        return "scene"
 
     def static_definition(self) -> dict[str, Any]:
         """Return the full scene structure as a typed message.

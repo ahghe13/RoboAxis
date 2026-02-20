@@ -130,7 +130,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.scene is None:
             self._send_error(503, "No scene available")
             return
-        data = json.dumps(self.scene.snapshot()).encode()
+        data = json.dumps(self.scene.get_state()).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(data)))
@@ -141,7 +141,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.scene is None:
             self._send_error(503, "No scene available")
             return
-        self._send_json(200, self.scene.static_scene_definition())
+        self._send_json(200, self.scene.static_definition())
 
     def _serve_file(self, path: Path) -> None:
         if not path.exists() or not path.is_file():

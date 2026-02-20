@@ -21,6 +21,7 @@ class SceneComponent:
     parent    : SceneComponent | None  Back-reference to the parent component, or None for root nodes.
     """
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    name: str = ""
     transform: Transform = field(default_factory=Transform)
     children: list[SceneComponent] = field(default_factory=list)
     cad_file: Optional[str] = None
@@ -65,6 +66,7 @@ class SceneComponent:
         """
         entry: dict[str, Any] = {
             "id": self.id,
+            "name": self.name,
             "parent": self.parent.id if self.parent is not None else None,
             "component_type": self.get_component_type(),
         }

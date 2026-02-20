@@ -41,7 +41,7 @@ class SerialRobot(SceneComponent):
 
     def __init__(self, descriptor: dict) -> None:
         super().__init__()
-        self.name: str = descriptor.get("name", "robot")
+        self.name: str = descriptor.get("name", "serial_robot")
 
         if "transform" in descriptor:
             self.transform = _parse_transform(descriptor["transform"])
@@ -50,9 +50,9 @@ class SerialRobot(SceneComponent):
         self._tcp_offset: Transform = Transform()
 
         parent: SceneComponent = self
-        for jd in descriptor.get("joints", []):
+        for i, jd in enumerate(descriptor.get("joints", []), start=1):
             joint = Joint(
-                name=jd["name"],
+                name=f"joint{i}",
                 axis=jd.get("axis", "y"),
                 max_speed=jd.get("max_speed", 180.0),
                 acceleration=jd.get("acceleration", 60.0),

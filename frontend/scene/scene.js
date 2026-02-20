@@ -153,15 +153,18 @@ export class Scene3D {
 
     // Create components from definition
     for (const componentDef of definition.components) {
-      const { id, type, model_file, model_body } = componentDef;
+      const { id, component_type, model_file, model_body } = componentDef;
 
-      // Create a group container for this component
-      const group = new THREE.Group();
+      // Create the appropriate model for this component type
+      let group;
+      if (component_type === 'joint') {
+        group = new Joint();
+      } else {
+        group = new THREE.Group();
+        const axesHelper = new THREE.AxesHelper(0.2);
+        group.add(axesHelper);
+      }
       group.name = id;
-
-      // Add coordinate frame (axes helper)
-      const axesHelper = new THREE.AxesHelper(0.2);
-      group.add(axesHelper);
 
       // If model file is specified, load the 3D model asynchronously
       if (model_file && model_body) {
@@ -179,7 +182,7 @@ export class Scene3D {
       this._components[id] = group;
       this.scene.add(group);
 
-      console.log(`[scene] Created component: ${id} (${type})`);
+      console.log(`[scene] Created component: ${id} (${component_type})`);
     }
   }
 

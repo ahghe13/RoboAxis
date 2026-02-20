@@ -23,6 +23,7 @@ from axis_math import Transform
 from scene.scene import Scene
 from server import FrontendServer
 from devices import ThreeAxisRobot
+from kinematics import SerialRobot
 
 
 def main() -> None:
@@ -36,10 +37,27 @@ def main() -> None:
 
     scene = Scene()
 
-    # Add 3-axis robot (treat as a single component for now)
-    robot = ThreeAxisRobot(name="robot")
-    robot.set_joint_angles(shoulder=45.0, elbow=45.0, wrist=0.0)
-    scene.add("robot", robot, transform=Transform(position=(-2, 0, 0)))
+    robot = SerialRobot({
+        "name": "robot",
+        "joints": [
+            {
+                "name": "joint_1", "axis": "z",
+                "max_speed": args.max_speed, "acceleration": args.acceleration,
+                "transform": {"position": [0.0, 0.0, 0.0]},
+            },
+            {
+                "name": "joint_2", "axis": "y",
+                "max_speed": args.max_speed, "acceleration": args.acceleration,
+                "transform": {"position": [0.0, 1.0, 0.0]},
+            },
+            {
+                "name": "joint_3", "axis": "y",
+                "max_speed": args.max_speed, "acceleration": args.acceleration,
+                "transform": {"position": [0.0, 1.0, 0.0]},
+            },
+        ],
+    })
+    scene.add_child(robot)
 
     server = FrontendServer(host=args.host, port=args.port, scene=scene, ws_port=args.ws_port)
 
@@ -48,7 +66,6 @@ def main() -> None:
     ws_thread.start()
 
     server.start()
-    print(f"  Scene — components: {scene.names()}")
     print(f"  Axis  — max speed: {args.max_speed} °/s  |  accel: {args.acceleration} °/s²")
     print(f"  WebSocket — ws://{args.host}:{args.ws_port}")
     print("  Press Ctrl-C to stop.\n")
