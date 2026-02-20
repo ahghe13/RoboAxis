@@ -10,7 +10,7 @@
  */
 
 import { Scene3D }                                    from '/static/scene/scene.js';
-import { mountDetailsPanel, showComponentDetails }   from '/static/panels/details_panel.js';
+import { mountDetailsPanel, showComponentDetails, updateComponentState } from '/static/panels/details_panel.js';
 import { mountSceneTree }                            from '/static/panels/scene_tree.js';
 import { WebSocketClient }                           from '/static/websocket_client.js';
 
@@ -34,6 +34,7 @@ new WebSocketClient(
   // On state update (subsequent messages)
   (update) => {
     scene3d.updateFromState(update);
+    updateComponentState(update.components);
   }
 );
 

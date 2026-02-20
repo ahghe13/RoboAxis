@@ -19,10 +19,8 @@ import threading
 import time
 
 from server.websocket_server import WebSocketServer
-from axis_math import Transform
 from scene.scene import Scene
 from server import FrontendServer
-from devices import ThreeAxisRobot
 from kinematics import SerialRobot
 
 
@@ -53,7 +51,7 @@ def main() -> None:
             {
                 "name": "joint_3", "axis": "y",
                 "max_speed": args.max_speed, "acceleration": args.acceleration,
-                "transform": {"position": [0.0, 1.0, 0.0]},
+                "transform": {"position": [0.0, 1.0, 1.0]},
             },
         ],
     })

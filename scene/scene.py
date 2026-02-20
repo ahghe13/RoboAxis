@@ -58,10 +58,7 @@ class Scene(SceneComponent):
 
         def collect(node: SceneComponent, parent_tf: Transform) -> None:
             world_tf = parent_tf.compose(node.transform)
-            components.append({
-                "id": node.id,
-                "matrix": world_tf.to_matrix().flatten().tolist(),
-            })
+            components.append(node.get_state(parent_tf))
             for c in node.children:
                 collect(c, world_tf)
 

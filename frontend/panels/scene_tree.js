@@ -69,7 +69,7 @@ function buildNode(node, hierarchy, onSelect) {
 
   const label = document.createElement('span');
   label.className = 'st-label';
-  label.textContent = `${component.name || component.id} (${component.type})`;
+  label.textContent = `${component.name || component.id} (${component.component_type})`;
   row.appendChild(label);
 
   li.appendChild(row);
