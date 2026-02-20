@@ -13,6 +13,8 @@ Run with:
 """
 
 import argparse
+import json
+import pathlib
 import signal
 import sys
 import threading
@@ -35,26 +37,9 @@ def main() -> None:
 
     scene = Scene()
 
-    robot = SerialRobot({
-        "name": "robot",
-        "joints": [
-            {
-                "name": "joint_1", "axis": "z",
-                "max_speed": args.max_speed, "acceleration": args.acceleration,
-                "transform": {"position": [0.0, 0.0, 0.0]},
-            },
-            {
-                "name": "joint_2", "axis": "y",
-                "max_speed": args.max_speed, "acceleration": args.acceleration,
-                "transform": {"position": [0.0, 1.0, 0.0]},
-            },
-            {
-                "name": "joint_3", "axis": "y",
-                "max_speed": args.max_speed, "acceleration": args.acceleration,
-                "transform": {"position": [0.0, 1.0, 1.0]},
-            },
-        ],
-    })
+    robot_file = pathlib.Path(__file__).parent / "devices" / "robots" / "robot_3dof.json"
+    robot_desc = json.loads(robot_file.read_text())
+    robot = SerialRobot(robot_desc)
     scene.add_child(robot)
 
     server = FrontendServer(host=args.host, port=args.port, scene=scene, ws_port=args.ws_port)

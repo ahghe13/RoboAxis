@@ -57,10 +57,10 @@ class Scene(SceneComponent):
         components: list[dict[str, Any]] = []
 
         def collect(node: SceneComponent, parent_tf: Transform) -> None:
-            world_tf = parent_tf.compose(node.transform)
             components.append(node.get_state(parent_tf))
+            child_tf = node.get_world_transform(parent_tf)
             for c in node.children:
-                collect(c, world_tf)
+                collect(c, child_tf)
 
         for child in self.children:
             collect(child, Transform())

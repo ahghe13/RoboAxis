@@ -30,9 +30,14 @@ const STATE_LABELS = {
 const STATIC_SKIP = new Set(['id', 'name', 'matrix']);
 const STATE_SKIP  = new Set(['id', 'matrix']);
 
-let _selectedId = null;
+let _selectedId  = null;
+let _components  = [];  // full flat component list for name lookups
 
 // ── Public API ────────────────────────────────────────────────────────────────
+
+export function setComponents(components) {
+  _components = components;
+}
 
 export function mountDetailsPanel() {
   const panel = document.createElement('aside');
@@ -48,12 +53,19 @@ export function showComponentDetails(component) {
 
   const staticRows = Object.entries(component)
     .filter(([k]) => !STATIC_SKIP.has(k))
-    .map(([k, v]) => _row(STATIC_LABELS[k] || k, v))
+    .map(([k, v]) => {
+      if (k === 'parent' && v) {
+        const parentComp = _components.find(c => c.id === v);
+        v = parentComp ? (parentComp.name || v) : v;
+      }
+      return _row(STATIC_LABELS[k] || k, v);
+    })
     .join('');
 
   panel.innerHTML = `
     <div class="panel-section">
       <div class="panel-label">${component.name || component.id}</div>
+      ${_row('ID', component.id)}
       ${staticRows}
     </div>
     <div class="panel-section" id="details-state-section">

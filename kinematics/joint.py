@@ -89,9 +89,16 @@ class Joint(SceneComponent):
         }[self.axis]
         return Transform(rotation=rotation)
 
+    def get_world_transform(self, parent_transform: Transform) -> Transform:
+        """Return parent × fixed_offset × joint_rotation for propagation to children."""
+        return parent_transform.compose(self.transform).compose(self.get_transform())
+
     def get_state(self, parent_transform: Optional[Transform] = None) -> dict[str, Any]:
         """Return the joint's world transform plus live motor state."""
         state = super().get_state(parent_transform)
+        # Recompute matrix to include the current joint rotation on top of the fixed offset
+        world_tf = (parent_transform or Transform()).compose(self.transform).compose(self.get_transform())
+        state["matrix"]       = world_tf.to_matrix().flatten().tolist()
         state["position"]     = self.position
         state["speed"]        = self.speed
         state["acceleration"] = self._motor._motor._acceleration

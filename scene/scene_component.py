@@ -32,6 +32,15 @@ class SceneComponent:
         """Return the component type identifier for this component."""
         return "basic_component"
 
+    def get_world_transform(self, parent_transform: Transform) -> Transform:
+        """Return the world transform to propagate to children.
+
+        For a plain component this is parent × fixed_offset.
+        Subclasses with dynamic state (e.g. Joint) should override this to
+        include their runtime contribution.
+        """
+        return parent_transform.compose(self.transform)
+
     def get_state(self, parent_transform: Optional[Transform] = None) -> dict[str, Any]:
         """Return the current state of this component as a JSON-serialisable dict.
 
@@ -47,6 +56,19 @@ class SceneComponent:
             "id": self.id,
             "matrix": world_tf.to_matrix().flatten().tolist(),
         }
+
+    def get_component(self, id: str) -> Optional[SceneComponent]:
+        """Return the descendant with the given *id*, or ``None`` if not found.
+
+        Searches depth-first through all children recursively.
+        """
+        for child in self.children:
+            if child.id == id:
+                return child
+            found = child.get_component(id)
+            if found is not None:
+                return found
+        return None
 
     def add_child(self, child: SceneComponent) -> None:
         """Append *child* to this component's children list and set its parent."""
