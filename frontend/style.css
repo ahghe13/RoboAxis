@@ -203,3 +203,60 @@ html, body {
   font-style: italic;
   color: var(--text-dim);
 }
+
+/* ── Jog controls ────────────────────────────────────────────── */
+.jog-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  padding: 2px 0;
+}
+
+.jog-label {
+  color: var(--text-dim);
+  min-width: 22px;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+}
+
+.jog-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.jog-pos {
+  color: var(--amber);
+  font-size: 13px;
+  min-width: 54px;
+  text-align: center;
+}
+
+.jog-btn {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  width: 26px;
+  height: 26px;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  transition: border-color 0.1s, color 0.1s;
+}
+
+.jog-btn:hover {
+  border-color: var(--amber-dim);
+  color: var(--amber);
+}
+
+.jog-btn:active {
+  background: rgba(232, 146, 42, 0.15);
+  border-color: var(--amber);
+  color: var(--amber);
+}

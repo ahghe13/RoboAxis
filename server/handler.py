@@ -10,9 +10,12 @@ Routes:
     GET  /api/scene/definition       → static scene definition (structure only)
     GET  /api/config                 → server configuration (ws_port, etc.)
     POST /api/scene/<id>/position    → set target position for an axis
-    POST /api/scene/<id>/joints      → set joint angles for a ThreeAxisRobot
-                                       body: {"shoulder": deg, "elbow": deg, "wrist": deg}
-                                       all fields optional; omitted joints keep current angle
+    POST /api/scene/<id>/joints      → set joint angles for a SerialRobot
+                                       body: {"joints": [deg0, deg1, ...]}
+                                       list is 0-indexed; null entries skip that joint;
+                                       a shorter list leaves trailing joints unchanged
+    POST /api/scene/<id>/jog         → jog a joint on a SerialRobot
+                                       body: {"joint": index, "direction": "cw"|"ccw"|"stop"}
 """
 from __future__ import annotations
 
@@ -23,7 +26,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from scene import Scene
+    from scene.scene import Scene
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -59,6 +62,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._set_position(name)
             elif action == "joints":
                 self._set_joint_angles(name)
+            elif action == "jog":
+                self._jog_joint(name)
             else:
                 self._send_error(404, f"Not found: {path}")
         else:
@@ -96,41 +101,86 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         try:
-            component = self.scene.get(name)
+            component = self.scene.get_component(name)
         except KeyError:
             self._send_error(404, f"Component not found: {name}")
             return
 
-        if not hasattr(component, "set_joint_angles") or not hasattr(component, "get_joint_angles"):
+        if not hasattr(component, "set_joint_angle") or not hasattr(component, "joints"):
             self._send_error(400, f"Component '{name}' does not support joint control")
             return
 
         try:
             length = int(self.headers.get("Content-Length", 0))
             body = json.loads(self.rfile.read(length))
-        except (json.JSONDecodeError, ValueError) as e:
+            incoming = body["joints"]
+            if not isinstance(incoming, list):
+                raise ValueError("'joints' must be a list")
+        except (json.JSONDecodeError, KeyError, ValueError) as e:
             self._send_error(400, f"Invalid request body: {e}")
             return
 
-        current = component.get_joint_angles()
-        try:
-            angles = {
-                "shoulder": float(body.get("shoulder", current["shoulder"])),
-                "elbow":    float(body.get("elbow",    current["elbow"])),
-                "wrist":    float(body.get("wrist",    current["wrist"])),
-            }
-        except (ValueError, TypeError) as e:
-            self._send_error(400, f"Invalid angle value: {e}")
+        applied: dict[int, float] = {}
+        for i, value in enumerate(incoming):
+            if value is None:
+                continue
+            if i >= len(component.joints):
+                self._send_error(400, f"Joint index {i} out of range (robot has {len(component.joints)} joints)")
+                return
+            try:
+                angle = float(value)
+            except (ValueError, TypeError) as e:
+                self._send_error(400, f"Invalid angle at index {i}: {e}")
+                return
+            component.set_joint_angle(i, angle)
+            applied[i] = angle
+
+        self._send_json(200, {"name": name, "joints": applied})
+
+    def _jog_joint(self, name: str) -> None:
+        if self.scene is None:
+            self._send_error(503, "No scene available")
             return
 
-        component.set_joint_angles(**angles)
-        self._send_json(200, {"name": name, "joints": angles})
+        try:
+            component = self.scene.get_component(name)
+        except KeyError:
+            self._send_error(404, f"Component not found: {name}")
+            return
+
+        if not hasattr(component, "joints"):
+            self._send_error(400, f"Component '{name}' does not support jog control")
+            return
+
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            body = json.loads(self.rfile.read(length))
+            joint_idx = int(body["joint"])
+            direction = str(body["direction"])
+            if direction not in ("cw", "ccw", "stop"):
+                raise ValueError(f"Invalid direction '{direction}'")
+        except (json.JSONDecodeError, KeyError, ValueError, TypeError) as e:
+            self._send_error(400, f"Invalid request body: {e}")
+            return
+
+        if joint_idx < 0 or joint_idx >= len(component.joints):
+            self._send_error(400, f"Joint index {joint_idx} out of range")
+            return
+
+        if direction == "cw":
+            component.jog_cw(joint_idx)
+        elif direction == "ccw":
+            component.jog_ccw(joint_idx)
+        else:
+            component.jog_stop(joint_idx)
+
+        self._send_json(200, {"name": name, "joint": joint_idx, "direction": direction})
 
     def _serve_scene(self) -> None:
         if self.scene is None:
             self._send_error(503, "No scene available")
             return
-        data = json.dumps(self.scene.snapshot()).encode()
+        data = json.dumps(self.scene.get_state()).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(data)))
@@ -141,7 +191,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.scene is None:
             self._send_error(503, "No scene available")
             return
-        self._send_json(200, self.scene.static_scene_definition())
+        self._send_json(200, self.scene.static_definition())
 
     def _serve_file(self, path: Path) -> None:
         if not path.exists() or not path.is_file():

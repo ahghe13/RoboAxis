@@ -13,16 +13,17 @@ Run with:
 """
 
 import argparse
+import json
+import pathlib
 import signal
 import sys
 import threading
 import time
 
 from server.websocket_server import WebSocketServer
-from axis_math import Transform
-from scene import Scene
+from scene.scene import Scene
 from server import FrontendServer
-from devices import ThreeAxisRobot
+from kinematics import SerialRobot
 
 
 def main() -> None:
@@ -36,10 +37,10 @@ def main() -> None:
 
     scene = Scene()
 
-    # Add 3-axis robot (treat as a single component for now)
-    robot = ThreeAxisRobot(name="robot")
-    robot.set_joint_angles(shoulder=45.0, elbow=45.0, wrist=0.0)
-    scene.add("robot", robot, transform=Transform(position=(-2, 0, 0)))
+    robot_file = pathlib.Path(__file__).parent / "devices" / "robots" / "robot_3dof.json"
+    robot_desc = json.loads(robot_file.read_text())
+    robot = SerialRobot(robot_desc)
+    scene.add_child(robot)
 
     server = FrontendServer(host=args.host, port=args.port, scene=scene, ws_port=args.ws_port)
 
@@ -48,7 +49,6 @@ def main() -> None:
     ws_thread.start()
 
     server.start()
-    print(f"  Scene — components: {scene.names()}")
     print(f"  Axis  — max speed: {args.max_speed} °/s  |  accel: {args.acceleration} °/s²")
     print(f"  WebSocket — ws://{args.host}:{args.ws_port}")
     print("  Press Ctrl-C to stop.\n")

@@ -10,7 +10,7 @@
  */
 
 import { Scene3D }                                    from '/static/scene/scene.js';
-import { mountDetailsPanel, showComponentDetails }   from '/static/panels/details_panel.js';
+import { mountDetailsPanel, showComponentDetails, updateComponentState, setComponents } from '/static/panels/details_panel.js';
 import { mountSceneTree }                            from '/static/panels/scene_tree.js';
 import { WebSocketClient }                           from '/static/websocket_client.js';
 
@@ -28,12 +28,14 @@ new WebSocketClient(
   // On scene definition (first message)
   (definition) => {
     console.log('[main] Received scene definition');
+    setComponents(definition.components);
     scene3d.buildFromDefinition(definition);
     mountSceneTree(definition, showComponentDetails);
   },
   // On state update (subsequent messages)
   (update) => {
     scene3d.updateFromState(update);
+    updateComponentState(update.components);
   }
 );
 

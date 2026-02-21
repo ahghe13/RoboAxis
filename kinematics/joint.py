@@ -11,13 +11,14 @@ Each Joint represents a degree of freedom (DoF) with variable state.
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 
 from axis_math import Transform
+from scene.scene_component import SceneComponent
 from simulation.servo_motor import ServoMotor
 
 
-class Joint:
+class Joint(SceneComponent):
     """
     A single degree of freedom (DoF) in a kinematic chain.
 
@@ -32,6 +33,9 @@ class Joint:
     position  : float      Current joint angle in degrees (read from motor).
     """
 
+    def get_component_type(self) -> str:
+        return "joint"
+
     def __init__(self, name: str, axis: str = 'y',
                  max_speed: float = 180.0, acceleration: float = 60.0) -> None:
         """
@@ -44,6 +48,7 @@ class Joint:
         max_speed    : float  Top speed in °/s (default: 180).
         acceleration : float  Ramp rate in °/s² (default: 60).
         """
+        super().__init__()
         if axis not in ('x', 'y', 'z'):
             raise ValueError(f"Invalid axis '{axis}', must be 'x', 'y', or 'z'")
         self.name = name
@@ -84,17 +89,22 @@ class Joint:
         }[self.axis]
         return Transform(rotation=rotation)
 
+    def get_world_transform(self, parent_transform: Transform) -> Transform:
+        """Return parent × fixed_offset × joint_rotation for propagation to children."""
+        return parent_transform.compose(self.transform).compose(self.get_transform())
+
+    def get_state(self, parent_transform: Optional[Transform] = None) -> dict[str, Any]:
+        """Return the joint's world transform plus live motor state."""
+        state = super().get_state(parent_transform)
+        # Recompute matrix to include the current joint rotation on top of the fixed offset
+        world_tf = (parent_transform or Transform()).compose(self.transform).compose(self.get_transform())
+        state["matrix"]       = world_tf.to_matrix().flatten().tolist()
+        state["position"]     = self.position
+        state["speed"]        = self.speed
+        state["acceleration"] = self._motor._motor._acceleration
+        state["is_moving"]    = self.is_moving
+        return state
+
     def set_position(self, value: float) -> None:
         """Command the joint to move to *value* degrees (non-blocking)."""
         self._motor.set_absolute_position(value)
-
-    def snapshot(self) -> dict[str, Any]:
-        """Return JSON-serializable state for this joint."""
-        return {
-            "type": "Joint",
-            "name": self.name,
-            "axis": self.axis,
-            "position": self.position,
-            "speed": self.speed,
-            "is_moving": self.is_moving,
-        }

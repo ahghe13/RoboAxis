@@ -1,0 +1,190 @@
+{
+  "type": "serial_robot",
+  "name": "robot_6dof",
+  "transform": {
+    "position": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  "joints": [
+    {
+      "name": "joint_1",
+      "axis": "y",
+      "cad_file": "robot.glb",
+      "cad_body": "Body",
+      "max_speed": 180.0,
+      "acceleration": 60.0,
+      "transform": {
+        "position": [
+          0.0,
+          0.15,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "name": "joint_2",
+      "axis": "z",
+      "cad_file": "robot.glb",
+      "cad_body": "Body",
+      "max_speed": 150.0,
+      "acceleration": 50.0,
+      "transform": {
+        "position": [
+          0.0,
+          0.1,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "name": "joint_3",
+      "axis": "z",
+      "cad_file": "robot.glb",
+      "cad_body": "Body",
+      "max_speed": 150.0,
+      "acceleration": 50.0,
+      "transform": {
+        "position": [
+          0.0,
+          0.4,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "name": "joint_4",
+      "axis": "x",
+      "cad_file": "robot.glb",
+      "cad_body": "Body",
+      "max_speed": 270.0,
+      "acceleration": 90.0,
+      "transform": {
+        "position": [
+          0.0,
+          0.35,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "name": "joint_5",
+      "axis": "z",
+      "cad_file": "robot.glb",
+      "cad_body": "Body",
+      "max_speed": 270.0,
+      "acceleration": 90.0,
+      "transform": {
+        "position": [
+          0.0,
+          0.1,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "name": "joint_6",
+      "axis": "x",
+      "cad_file": "robot.glb",
+      "cad_body": "Body",
+      "max_speed": 360.0,
+      "acceleration": 120.0,
+      "transform": {
+        "position": [
+          0.0,
+          0.08,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    }
+  ],
+  "tcp_offset": {
+    "position": [
+      0.0,
+      0.06,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  }
+}

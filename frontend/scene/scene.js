@@ -153,15 +153,18 @@ export class Scene3D {
 
     // Create components from definition
     for (const componentDef of definition.components) {
-      const { id, type, model_file, model_body } = componentDef;
+      const { id, component_type, model_file, model_body } = componentDef;
 
-      // Create a group container for this component
-      const group = new THREE.Group();
+      // Create the appropriate model for this component type
+      let group;
+      if (component_type === 'joint') {
+        group = new Joint();
+      } else {
+        group = new THREE.Group();
+        const axesHelper = new THREE.AxesHelper(0.2);
+        group.add(axesHelper);
+      }
       group.name = id;
-
-      // Add coordinate frame (axes helper)
-      const axesHelper = new THREE.AxesHelper(0.2);
-      group.add(axesHelper);
 
       // If model file is specified, load the 3D model asynchronously
       if (model_file && model_body) {
@@ -179,7 +182,7 @@ export class Scene3D {
       this._components[id] = group;
       this.scene.add(group);
 
-      console.log(`[scene] Created component: ${id} (${type})`);
+      console.log(`[scene] Created component: ${id} (${component_type})`);
     }
   }
 
@@ -198,13 +201,13 @@ export class Scene3D {
 
       // Apply absolute world transform from 4x4 matrix
       if (matrix) {
-        // Backend sends 4x4 matrix as nested array [[row0], [row1], [row2], [row3]]
+        // Backend sends a flat row-major array of 16 values
         const mat = new THREE.Matrix4();
         mat.set(
-          matrix[0][0], matrix[0][1], matrix[0][2], matrix[0][3],
-          matrix[1][0], matrix[1][1], matrix[1][2], matrix[1][3],
-          matrix[2][0], matrix[2][1], matrix[2][2], matrix[2][3],
-          matrix[3][0], matrix[3][1], matrix[3][2], matrix[3][3]
+          matrix[0],  matrix[1],  matrix[2],  matrix[3],
+          matrix[4],  matrix[5],  matrix[6],  matrix[7],
+          matrix[8],  matrix[9],  matrix[10], matrix[11],
+          matrix[12], matrix[13], matrix[14], matrix[15]
         );
 
         // Apply the matrix and decompose it to update position/rotation/scale

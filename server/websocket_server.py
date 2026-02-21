@@ -3,7 +3,7 @@ import json
 
 import websockets
 
-from scene import Scene
+from scene.scene import Scene
 
 
 class WebSocketServer:
@@ -27,7 +27,7 @@ class WebSocketServer:
 
         # Send scene definition on initial connection
         try:
-            scene_definition = self.scene.static_scene_definition()
+            scene_definition = self.scene.static_definition()
             await websocket.send(json.dumps(scene_definition))
             print(f"[ws] Sent scene definition to {websocket.remote_address}")
         except websockets.ConnectionClosed:
@@ -45,7 +45,7 @@ class WebSocketServer:
         """Continuously sends the scene snapshot to all connected clients."""
         while True:
             if self.clients:
-                snapshot_data = self.scene.snapshot()
+                snapshot_data = self.scene.get_state()
                 message = json.dumps(snapshot_data)
                 # Send to each client, removing any that have disconnected
                 disconnected = set()
