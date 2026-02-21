@@ -153,7 +153,7 @@ export class Scene3D {
 
     // Create components from definition
     for (const componentDef of definition.components) {
-      const { id, component_type, model_file, model_body } = componentDef;
+      const { id, component_type, cad_file, cad_body } = componentDef;
 
       // Create the appropriate model for this component type
       let group;
@@ -166,12 +166,11 @@ export class Scene3D {
       }
       group.name = id;
 
-      // If model file is specified, load the 3D model asynchronously
-      if (model_file && model_body) {
-        loadModelBody(model_file, model_body)
+      // If a CAD model is specified, load it asynchronously and attach it
+      if (cad_file && cad_body) {
+        loadModelBody(cad_file, cad_body)
           .then((mesh) => {
             group.add(mesh);
-            console.log(`[scene] Loaded model for ${id}: ${model_file}/${model_body}`);
           })
           .catch((err) => {
             console.error(`[scene] Failed to load model for ${id}:`, err);

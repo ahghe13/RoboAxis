@@ -1,11 +1,8 @@
 {
   "type": "serial_robot",
   "name": "robot_3dof",
-  "transform": {
-    "position": [0.0, 0.0, 0.0],
-    "rotation": [0.0, 0.0, 0.0],
-    "scale": [1.0, 1.0, 1.0]
-  },
+  "cad_file": "robot.glb",
+  "cad_body": "Base",
   "joints": [
     {
       "name": "joint_1",

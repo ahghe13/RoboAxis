@@ -43,8 +43,10 @@ class SerialRobot(SceneComponent):
         super().__init__()
         self.name: str = descriptor.get("name", "serial_robot")
 
-        if "transform" in descriptor:
-            self.transform = _parse_transform(descriptor["transform"])
+        if "cad_file" in descriptor:
+            self.cad_file = descriptor["cad_file"]
+        if "cad_body" in descriptor:
+            self.cad_body = descriptor["cad_body"]
 
         self.joints: list[Joint] = []
         self._tcp_offset: Transform = Transform()
