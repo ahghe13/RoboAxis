@@ -14,6 +14,8 @@ Routes:
                                        body: {"joints": [deg0, deg1, ...]}
                                        list is 0-indexed; null entries skip that joint;
                                        a shorter list leaves trailing joints unchanged
+    POST /api/scene/<id>/jog         → jog a joint on a SerialRobot
+                                       body: {"joint": index, "direction": "cw"|"ccw"|"stop"}
 """
 from __future__ import annotations
 
@@ -60,6 +62,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._set_position(name)
             elif action == "joints":
                 self._set_joint_angles(name)
+            elif action == "jog":
+                self._jog_joint(name)
             else:
                 self._send_error(404, f"Not found: {path}")
         else:
@@ -132,6 +136,45 @@ class Handler(BaseHTTPRequestHandler):
             applied[i] = angle
 
         self._send_json(200, {"name": name, "joints": applied})
+
+    def _jog_joint(self, name: str) -> None:
+        if self.scene is None:
+            self._send_error(503, "No scene available")
+            return
+
+        try:
+            component = self.scene.get_component(name)
+        except KeyError:
+            self._send_error(404, f"Component not found: {name}")
+            return
+
+        if not hasattr(component, "joints"):
+            self._send_error(400, f"Component '{name}' does not support jog control")
+            return
+
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            body = json.loads(self.rfile.read(length))
+            joint_idx = int(body["joint"])
+            direction = str(body["direction"])
+            if direction not in ("cw", "ccw", "stop"):
+                raise ValueError(f"Invalid direction '{direction}'")
+        except (json.JSONDecodeError, KeyError, ValueError, TypeError) as e:
+            self._send_error(400, f"Invalid request body: {e}")
+            return
+
+        if joint_idx < 0 or joint_idx >= len(component.joints):
+            self._send_error(400, f"Joint index {joint_idx} out of range")
+            return
+
+        if direction == "cw":
+            component.jog_cw(joint_idx)
+        elif direction == "ccw":
+            component.jog_ccw(joint_idx)
+        else:
+            component.jog_stop(joint_idx)
+
+        self._send_json(200, {"name": name, "joint": joint_idx, "direction": direction})
 
     def _serve_scene(self) -> None:
         if self.scene is None:
