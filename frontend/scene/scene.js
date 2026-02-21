@@ -66,12 +66,17 @@ async function loadModelBody(modelFile, bodyName) {
     return new THREE.Mesh(geometry, material);
   }
 
-  // Clone the body so it can be added to multiple scenes
+  // Clone the body and give each instance its own materials so
+  // highlight changes on one component don't bleed into others.
   const clonedBody = body.clone();
-  if (clonedBody.isMesh) {
-    clonedBody.castShadow = true;
-    clonedBody.receiveShadow = true;
-  }
+  clonedBody.traverse((child) => {
+    if (!child.isMesh) return;
+    child.material = Array.isArray(child.material)
+      ? child.material.map(m => m.clone())
+      : child.material.clone();
+    child.castShadow    = true;
+    child.receiveShadow = true;
+  });
 
   return clonedBody;
 }
@@ -83,7 +88,11 @@ export class Scene3D {
   constructor(container) {
     this._container  = container;
     this._animId     = null;
-    this._components = {};   // name → 3D model instance
+    this._components = {};   // id → THREE.Group
+    this._selectedId = null;
+    this._raycaster  = new THREE.Raycaster();
+    this._raycaster.params.Line.threshold  = 0.01;
+    this._raycaster.params.Points.threshold = 0.01;
 
     this._initRenderer();
     this._initCamera();
@@ -150,6 +159,7 @@ export class Scene3D {
       if (model.parent) model.parent.remove(model);
       delete this._components[name];
     }
+    this._selectedId = null;
 
     // Create components from definition
     for (const componentDef of definition.components) {
@@ -215,6 +225,81 @@ export class Scene3D {
         model.matrixAutoUpdate = false;
       }
     }
+  }
+
+  // ── Selection & picking ───────────────────────────────────────────────────
+
+  /**
+   * Highlight the component with the given id and unhighlight the previous one.
+   * @param {string|null} id
+   */
+  selectComponent(id) {
+    if (this._selectedId && this._components[this._selectedId]) {
+      this._setHighlight(this._components[this._selectedId], false);
+    }
+    this._selectedId = id;
+    if (id && this._components[id]) {
+      this._setHighlight(this._components[id], true);
+    }
+  }
+
+  /**
+   * Register a callback for click-picks on the canvas.
+   * The callback receives the component id of the clicked object.
+   * Drags (pointer moved > 5 px) are ignored so orbit control is unaffected.
+   * @param {function(string): void} onPick
+   */
+  setPicking(onPick) {
+    const canvas = this.renderer.domElement;
+    let downPos = null;
+
+    canvas.addEventListener('pointerdown', (e) => {
+      downPos = { x: e.clientX, y: e.clientY };
+    });
+
+    canvas.addEventListener('pointerup', (e) => {
+      if (!downPos) return;
+      const dx = e.clientX - downPos.x;
+      const dy = e.clientY - downPos.y;
+      downPos = null;
+      if (dx * dx + dy * dy > 25) return;   // drag threshold: 5 px
+
+      const rect   = canvas.getBoundingClientRect();
+      const ndc    = new THREE.Vector2(
+        ((e.clientX - rect.left) / rect.width)  *  2 - 1,
+        ((e.clientY - rect.top)  / rect.height) * -2 + 1,
+      );
+
+      this._raycaster.setFromCamera(ndc, this.camera);
+      const hits = this._raycaster.intersectObjects(Object.values(this._components), true);
+      // Prefer mesh hits — line/point helpers have loose thresholds and
+      // can intercept clicks far from the visible geometry.
+      const target = hits.find(h => h.object.isMesh) ?? hits[0];
+      if (target) {
+        const id = this._findComponentId(target.object);
+        if (id) onPick(id);
+      }
+    });
+  }
+
+  _findComponentId(object) {
+    let node = object;
+    while (node) {
+      if (node.name && this._components[node.name]) return node.name;
+      node = node.parent;
+    }
+    return null;
+  }
+
+  _setHighlight(group, on) {
+    group.traverse((child) => {
+      if (!child.isMesh) return;
+      const mats = Array.isArray(child.material) ? child.material : [child.material];
+      for (const mat of mats) {
+        mat.emissive.set(on ? 0xe8922a : 0x000000);
+        mat.emissiveIntensity = on ? 0.35 : 0;
+      }
+    });
   }
 
   // ── Resize handling ───────────────────────────────────────────────────────
