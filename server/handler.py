@@ -16,6 +16,10 @@ Routes:
                                        a shorter list leaves trailing joints unchanged
     POST /api/scene/<id>/jog         → jog a joint on a SerialRobot
                                        body: {"joint": index, "direction": "cw"|"ccw"|"stop"}
+    POST /api/scene/<id>/transform   → update the local transform of any component
+                                       body: {"position": [x,y,z],   (all keys optional)
+                                              "rotation": [rx,ry,rz],
+                                              "scale":    [sx,sy,sz]}
 """
 from __future__ import annotations
 
@@ -24,6 +28,8 @@ import mimetypes
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+from axis_math import Transform
 
 if TYPE_CHECKING:
     from scene.scene import Scene
@@ -64,6 +70,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._set_joint_angles(name)
             elif action == "jog":
                 self._jog_joint(name)
+            elif action == "transform":
+                self._set_transform(name)
             else:
                 self._send_error(404, f"Not found: {path}")
         else:
@@ -136,6 +144,36 @@ class Handler(BaseHTTPRequestHandler):
             applied[i] = angle
 
         self._send_json(200, {"name": name, "joints": applied})
+
+    def _set_transform(self, name: str) -> None:
+        if self.scene is None:
+            self._send_error(503, "No scene available")
+            return
+
+        try:
+            component = self.scene.get_component(name)
+        except KeyError:
+            self._send_error(404, f"Component not found: {name}")
+            return
+
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            body = json.loads(self.rfile.read(length))
+        except (json.JSONDecodeError, ValueError) as e:
+            self._send_error(400, f"Invalid JSON: {e}")
+            return
+
+        try:
+            current = component.transform
+            position = tuple(float(v) for v in body["position"]) if "position" in body else current.position
+            rotation = tuple(float(v) for v in body["rotation"]) if "rotation" in body else current.rotation
+            scale    = tuple(float(v) for v in body["scale"])    if "scale"    in body else current.scale
+        except (KeyError, ValueError, TypeError) as e:
+            self._send_error(400, f"Invalid transform values: {e}")
+            return
+
+        component.transform = Transform(position=position, rotation=rotation, scale=scale)
+        self._send_json(200, {"name": name, "transform": component.transform.to_dict()})
 
     def _jog_joint(self, name: str) -> None:
         if self.scene is None:

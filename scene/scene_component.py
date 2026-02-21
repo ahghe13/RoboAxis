@@ -91,6 +91,7 @@ class SceneComponent:
             "name": self.name,
             "parent": self.parent.id if self.parent is not None else None,
             "component_type": self.get_component_type(),
+            "transform": self.transform.to_dict(),
         }
         if self.cad_file is not None:
             entry["cad_file"] = self.cad_file

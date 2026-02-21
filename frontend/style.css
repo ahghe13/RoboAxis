@@ -204,6 +204,63 @@ html, body {
   color: var(--text-dim);
 }
 
+/* ── Transform editor ────────────────────────────────────────── */
+.tf-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.tf-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tf-row-label {
+  font-size: 10px;
+  color: var(--text-dim);
+  width: 22px;
+  flex-shrink: 0;
+  letter-spacing: 0.05em;
+}
+
+.tf-field {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.tf-axis {
+  font-size: 10px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.tf-x { color: #c05050; }
+.tf-y { color: #50a050; }
+.tf-z { color: #4878c8; }
+
+.tf-input {
+  width: 100%;
+  min-width: 0;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--amber);
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 3px 4px;
+  border-radius: 2px;
+  text-align: right;
+}
+
+.tf-input:focus {
+  border-color: var(--amber-dim);
+  outline: none;
+}
+
 /* ── Jog controls ────────────────────────────────────────────── */
 .jog-row {
   display: flex;
