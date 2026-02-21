@@ -4,7 +4,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-from axis_math import Transform
+from axis_math.axis_math import Transform
 
 
 @dataclass

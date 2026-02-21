@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from axis_math import Transform
+from axis_math.axis_math import Transform
 try:
     from scene.scene_component import SceneComponent
 except ImportError:

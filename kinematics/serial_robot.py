@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 from typing import Union
 
-from axis_math import Transform
+from axis_math.axis_math import Transform
 from kinematics.joint import Joint
 from scene.scene_component import SceneComponent
 

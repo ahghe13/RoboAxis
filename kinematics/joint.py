@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from axis_math import Transform
+from axis_math.axis_math import Transform
 from scene.scene_component import SceneComponent
 from simulation.servo_motor import ServoMotor
 

@@ -32,7 +32,7 @@ from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from axis_math import Transform
+from axis_math.axis_math import Transform
 from kinematics import SerialRobot
 
 if TYPE_CHECKING:
