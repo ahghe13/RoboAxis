@@ -25,6 +25,7 @@ class Scene(SceneComponent):
     def __init__(self) -> None:
         super().__init__()
         self.name = "scene"
+        self.transform_locked = True
 
     def get_component_type(self) -> str:
         return "scene"

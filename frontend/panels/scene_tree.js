@@ -72,11 +72,6 @@ function buildNode(node, hierarchy, onSelect) {
   row.addEventListener('click', (e) => {
     if (e.target === toggle) return;
 
-    if (hasChildren) {
-      const collapsed = ul.classList.toggle('st-collapsed');
-      toggle.textContent = collapsed ? '▸' : '▾';
-    }
-
     if (_selectedRow) _selectedRow.classList.remove('st-selected');
     _selectedRow = row;
     row.classList.add('st-selected');
