@@ -99,6 +99,20 @@ class SerialRobot(SceneComponent):
         """Return the current angle of joint at *index* in degrees [0, 360)."""
         return self.joints[index].position
 
+    # ── Jog ───────────────────────────────────────────────────────────────────
+
+    def jog_cw(self, index: int) -> None:
+        """Jog joint at *index* clockwise at its configured speed until stopped."""
+        self.joints[index].motor.jog_cw()
+
+    def jog_ccw(self, index: int) -> None:
+        """Jog joint at *index* counter-clockwise at its configured speed until stopped."""
+        self.joints[index].motor.jog_ccw()
+
+    def jog_stop(self, index: int) -> None:
+        """Stop an active jog on joint at *index* with a deceleration ramp."""
+        self.joints[index].motor.jog_stop()
+
     # ── TCP offset ────────────────────────────────────────────────────────────
 
     @property
