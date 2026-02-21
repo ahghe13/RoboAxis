@@ -346,6 +346,20 @@ html, body {
   outline: none;
 }
 
+.tf-input:disabled {
+  color: var(--text-dim);
+  cursor: not-allowed;
+}
+
+.tf-locked {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--text-dim);
+  letter-spacing: 0.1em;
+  text-transform: none;
+  margin-left: 6px;
+}
+
 /* ── Jog controls ────────────────────────────────────────────── */
 .jog-row {
   display: flex;

@@ -137,6 +137,9 @@ function _buildTransformSection(component) {
   const tf = _transformMap.get(component.id)
     ?? { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] };
 
+  const locked = component.transform_locked ?? false;
+  const disabledAttr = locked ? ' disabled' : '';
+
   const tfRow = (label, field, vals) => `
     <div class="tf-row">
       <span class="tf-row-label">${label}</span>
@@ -144,7 +147,7 @@ function _buildTransformSection(component) {
         <label class="tf-field">
           <span class="tf-axis tf-${axis.toLowerCase()}">${axis}</span>
           <input class="tf-input" data-tf="${field}" data-idx="${i}"
-                 type="number" step="any" value="${vals[i].toFixed(3)}">
+                 type="number" step="any" value="${vals[i].toFixed(3)}"${disabledAttr}>
         </label>
       `).join('')}
     </div>
@@ -152,7 +155,7 @@ function _buildTransformSection(component) {
 
   return `
     <div class="panel-section" id="details-tf-section">
-      <div class="panel-label">Transform</div>
+      <div class="panel-label">Transform${locked ? ' <span class="tf-locked">locked</span>' : ''}</div>
       <div class="tf-group">
         ${tfRow('Pos', 'position', tf.position)}
         ${tfRow('Rot', 'rotation', tf.rotation)}

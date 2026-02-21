@@ -23,6 +23,7 @@ class SceneComponent:
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     name: str = ""
     transform: Transform = field(default_factory=Transform)
+    transform_locked: bool = False
     children: list[SceneComponent] = field(default_factory=list)
     cad_file: Optional[str] = None
     cad_body: Optional[str] = None
@@ -31,6 +32,18 @@ class SceneComponent:
     def get_component_type(self) -> str:
         """Return the component type identifier for this component."""
         return "basic_component"
+
+    def set_transform(self, transform: Transform) -> None:
+        """Replace the local transform of this component.
+
+        Raises
+        ------
+        PermissionError
+            If ``transform_locked`` is True.
+        """
+        if self.transform_locked:
+            raise PermissionError(f"Transform of '{self.name or self.id}' is locked")
+        self.transform = transform
 
     def get_world_transform(self, parent_transform: Transform) -> Transform:
         """Return the world transform to propagate to children.
@@ -92,6 +105,7 @@ class SceneComponent:
             "parent": self.parent.id if self.parent is not None else None,
             "component_type": self.get_component_type(),
             "transform": self.transform.to_dict(),
+            "transform_locked": self.transform_locked,
         }
         if self.cad_file is not None:
             entry["cad_file"] = self.cad_file

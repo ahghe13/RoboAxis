@@ -66,6 +66,7 @@ class SerialRobot(SceneComponent):
             parent.add_child(joint)
             self.joints.append(joint)
             parent = joint
+            joint.transform_locked = True
 
         if "tcp_offset" in descriptor:
             self._tcp_offset = _parse_transform(descriptor["tcp_offset"])

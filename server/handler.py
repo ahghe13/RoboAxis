@@ -180,7 +180,12 @@ class Handler(BaseHTTPRequestHandler):
             self._send_error(400, f"Invalid transform values: {e}")
             return
 
-        component.transform = Transform(position=position, rotation=rotation, scale=scale)
+        try:
+            component.set_transform(Transform(position=position, rotation=rotation, scale=scale))
+        except PermissionError as e:
+            self._send_error(403, str(e))
+            return
+
         self._send_json(200, {"name": name, "transform": component.transform.to_dict()})
 
     def _jog_joint(self, name: str) -> None:
