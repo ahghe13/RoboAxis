@@ -23,6 +23,24 @@ const scene3d   = new Scene3D(container);
 const config = await fetch('/api/config').then(r => r.json());
 const wsUrl  = `ws://${location.hostname}:${config.ws_port}`;
 
+/** Re-fetch the full scene definition and rebuild the 3D scene and tree. */
+async function rebuildFromServer() {
+  const definition = await fetch('/api/scene/definition').then(r => r.json());
+  setComponents(definition.components);
+  scene3d.buildFromDefinition(definition);
+  mountSceneTree(definition, showComponentDetails, onAddRobot);
+}
+
+/** Add a robot from a device file, then rebuild. */
+async function onAddRobot(filename) {
+  await fetch('/api/scene/robots', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ device: filename }),
+  });
+  await rebuildFromServer();
+}
+
 new WebSocketClient(
   wsUrl,
   // On scene definition (first message)
@@ -30,7 +48,7 @@ new WebSocketClient(
     console.log('[main] Received scene definition');
     setComponents(definition.components);
     scene3d.buildFromDefinition(definition);
-    mountSceneTree(definition, showComponentDetails);
+    mountSceneTree(definition, showComponentDetails, onAddRobot);
   },
   // On state update (subsequent messages)
   (update) => {

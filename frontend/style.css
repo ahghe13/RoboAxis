@@ -145,6 +145,91 @@ html, body {
 }
 
 /* ── Scene tree ─────────────────────────────────────────── */
+
+.st-tree-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Override panel-label border when it lives inside st-tree-header */
+.st-tree-header .panel-label {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.st-add-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 15px;
+  width: 20px;
+  height: 20px;
+  border-radius: 2px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.st-add-btn:hover {
+  border-color: var(--amber);
+  color: var(--amber);
+}
+
+/* ── Robot picker dropdown ───────────────────────────────── */
+.st-picker {
+  position: fixed;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  z-index: 200;
+  min-width: 170px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.st-picker-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 8px 12px;
+  cursor: pointer;
+  gap: 12px;
+}
+
+.st-picker-item:hover {
+  background: rgba(232, 146, 42, 0.08);
+  color: var(--amber);
+}
+
+.st-picker-name { flex: 1; text-align: left; }
+
+.st-picker-meta {
+  color: var(--text-dim);
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.st-picker-item:hover .st-picker-meta { color: var(--amber-dim); }
+
+.st-picker-empty {
+  padding: 8px 12px;
+  font-size: 11px;
+  color: var(--text-dim);
+  font-style: italic;
+}
 .scene-tree {
   list-style: none;
   font-size: 11px;

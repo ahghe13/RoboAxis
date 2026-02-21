@@ -20,6 +20,9 @@ Routes:
                                        body: {"position": [x,y,z],   (all keys optional)
                                               "rotation": [rx,ry,rz],
                                               "scale":    [sx,sy,sz]}
+    GET  /api/devices/robots         → list robot descriptors in devices/robots/
+    POST /api/scene/robots           → instantiate a robot from a device file and add to scene
+                                       body: {"device": "robot_6dof.json"}
 """
 from __future__ import annotations
 
@@ -30,6 +33,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from axis_math import Transform
+from kinematics import SerialRobot
 
 if TYPE_CHECKING:
     from scene.scene import Scene
@@ -55,6 +59,8 @@ class Handler(BaseHTTPRequestHandler):
             self._serve_scene_definition()
         elif path == "/api/config":
             self._send_json(200, {"ws_port": self.ws_port})
+        elif path == "/api/devices/robots":
+            self._list_robot_devices()
         else:
             self._send_error(404, f"Not found: {path}")
 
@@ -62,7 +68,9 @@ class Handler(BaseHTTPRequestHandler):
         path = self.path.split("?")[0]
         parts = path.strip("/").split("/")
 
-        if len(parts) == 4 and parts[0] == "api" and parts[1] == "scene":
+        if parts == ["api", "scene", "robots"]:
+            self._add_robot()
+        elif len(parts) == 4 and parts[0] == "api" and parts[1] == "scene":
             name, action = parts[2], parts[3]
             if action == "position":
                 self._set_position(name)
@@ -213,6 +221,55 @@ class Handler(BaseHTTPRequestHandler):
             component.jog_stop(joint_idx)
 
         self._send_json(200, {"name": name, "joint": joint_idx, "direction": direction})
+
+    def _list_robot_devices(self) -> None:
+        devices_dir = Path(__file__).parent.parent / "devices" / "robots"
+        robots = []
+        for f in sorted(devices_dir.glob("*.json")):
+            try:
+                desc = json.loads(f.read_text())
+                robots.append({
+                    "filename": f.name,
+                    "name": desc.get("name", f.stem),
+                    "joint_count": len(desc.get("joints", [])),
+                })
+            except Exception:
+                pass
+        self._send_json(200, robots)
+
+    def _add_robot(self) -> None:
+        if self.scene is None:
+            self._send_error(503, "No scene available")
+            return
+
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            body = json.loads(self.rfile.read(length))
+            filename = str(body["device"])
+        except (json.JSONDecodeError, KeyError, ValueError, TypeError) as e:
+            self._send_error(400, f"Invalid request body: {e}")
+            return
+
+        # Guard against path traversal
+        if "/" in filename or "\\" in filename or not filename.endswith(".json"):
+            self._send_error(400, "Invalid device filename")
+            return
+
+        devices_dir = Path(__file__).parent.parent / "devices" / "robots"
+        robot_path = devices_dir / filename
+        if not robot_path.exists():
+            self._send_error(404, f"Device not found: {filename}")
+            return
+
+        try:
+            desc = json.loads(robot_path.read_text())
+            robot = SerialRobot(desc)
+        except Exception as e:
+            self._send_error(500, f"Failed to load robot: {e}")
+            return
+
+        self.scene.add_child(robot)
+        self._send_json(201, {"added": robot.static_definition()})
 
     def _serve_scene(self) -> None:
         if self.scene is None:
